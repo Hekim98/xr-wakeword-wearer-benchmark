@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Soundbar Audio Node (Phone 1) | Gemini Hotwords</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <script src="peerjs.min.js"></script>
+  <script>
+    
+if (typeof Peer === 'undefined') { document.write('<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"><\/script>'); }</script>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #161f30;
+      --card-border: #22324c;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #38bdf8;
+      --primary-glow: rgba(56, 189, 248, 0.25);
+      --success: #34d399;
+      --success-glow: rgba(52, 211, 153, 0.25);
+      --warning: #fbbf24;
+      --danger: #f87171;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Google Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      text-align: center;
+    }
+    .container {
+      max-width: 480px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(22, 31, 48, 0.7);
+      border: 1px solid var(--card-border);
+      border-radius: 9999px;
+      padding: 0.45rem 1rem;
+      font-size: 0.8rem;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-muted);
+    }
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #ef4444;
+      transition: all 0.3s;
+    }
+    .dot.active {
+      background: var(--success);
+      box-shadow: 0 0 10px var(--success);
+    }
+    .trial-counter {
+      font-family: 'Google Sans Mono', monospace;
+      color: var(--primary);
+      font-weight: 600;
+      font-size: 0.8rem;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 1.25rem;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      text-align: left;
+    }
+    .header-section {
+      text-align: center;
+    }
+    .main-icon {
+      font-size: 2.5rem;
+      margin-bottom: 0.15rem;
+    }
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #fff;
+    }
+    .sub-desc {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      margin-top: 0.15rem;
+    }
+
+    /* Audio Toggle Button */
+    .audio-toggle-btn {
+      background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+      color: #0f172a;
+      font-family: 'Google Sans', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 12px;
+      padding: 0.8rem 1rem;
+      width: 100%;
+      cursor: pointer;
+      box-shadow: 0 4px 14px var(--primary-glow);
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+    .audio-toggle-btn:active { transform: scale(0.98); }
+    .audio-toggle-btn.active {
+      background: #064e3b;
+      color: var(--success);
+      border: 1px solid #059669;
+      box-shadow: 0 0 10px rgba(5, 150, 105, 0.2);
+    }
+    .audio-toggle-btn.muted {
+      background: #334155;
+      color: #cbd5e1;
+      border: 1px solid #475569;
+      box-shadow: none;
+    }
+
+    /* Info Boxes */
+    .info-box {
+      background: #0f172a;
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 0.85rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      width: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    .info-box.active-playing {
+      border-color: var(--primary);
+      box-shadow: 0 0 15px var(--primary-glow);
+    }
+    .info-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      width: 100%;
+    }
+    .info-value {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      word-break: break-word;
+    }
+    .playback-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      background: rgba(148, 163, 184, 0.1);
+      color: var(--text-muted);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .playback-badge.playing {
+      background: rgba(56, 189, 248, 0.18);
+      color: var(--primary);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+    }
+
+    /* Hotword Box */
+    .hotword-value {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #38bdf8;
+      font-family: 'Google Sans Mono', monospace;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+    .prompt-phrase {
+      font-size: 0.85rem;
+      color: #cbd5e1;
+      font-style: italic;
+      line-height: 1.3;
+      margin-top: 0.15rem;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+    .category-tag {
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 0.15rem 0.5rem;
+      border-radius: 6px;
+      text-transform: uppercase;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .category-tag.positive {
+      background: rgba(52, 211, 153, 0.15);
+      color: var(--success);
+      border: 1px solid rgba(52, 211, 153, 0.3);
+    }
+    .category-tag.distractor {
+      background: rgba(251, 191, 36, 0.15);
+      color: var(--warning);
+      border: 1px solid rgba(251, 191, 36, 0.3);
+    }
+
+    /* Equalizer */
+    .equalizer-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      height: 20px;
+      margin-top: 0.15rem;
+    }
+    .eq-bar {
+      width: 4px;
+      background: var(--primary);
+      border-radius: 2px;
+      height: 3px;
+      transition: height 0.15s ease;
+    }
+    .equalizer-container.animated .eq-bar:nth-child(1) { animation: eq 0.6s infinite ease-in-out; }
+    .equalizer-container.animated .eq-bar:nth-child(2) { animation: eq 0.8s infinite 0.1s ease-in-out; }
+    .equalizer-container.animated .eq-bar:nth-child(3) { animation: eq 0.5s infinite 0.2s ease-in-out; }
+    .equalizer-container.animated .eq-bar:nth-child(4) { animation: eq 0.9s infinite 0.15s ease-in-out; }
+    .equalizer-container.animated .eq-bar:nth-child(5) { animation: eq 0.7s infinite 0.25s ease-in-out; }
+    .equalizer-container.animated .eq-bar:nth-child(6) { animation: eq 0.6s infinite 0.05s ease-in-out; }
+    .equalizer-container.animated .eq-bar:nth-child(7) { animation: eq 0.85s infinite 0.18s ease-in-out; }
+
+    @keyframes eq {
+      0%, 100% { height: 3px; }
+      50% { height: 18px; }
+    }
+
+    .audio-source-detail {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-family: 'Google Sans Mono', monospace;
+      text-align: center;
+    }
+
+    /* Remote Controls */
+    .controls-grid {
+      display: grid;
+      grid-template-columns: 1fr 2fr 1fr;
+      gap: 0.5rem;
+      margin-top: 0.2rem;
+    }
+    .ctrl-btn {
+      font-family: 'Google Sans', sans-serif;
+      font-weight: 700;
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 0.8rem 0.5rem;
+      background: #1e293b;
+      color: #f8fafc;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.3rem;
+      transition: all 0.2s;
+    }
+    .ctrl-btn:active { transform: scale(0.96); }
+    .ctrl-btn.primary {
+      background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+      color: #0f172a;
+      border: none;
+      box-shadow: 0 4px 12px var(--primary-glow);
+    }
+    .ctrl-btn.secondary {
+      background: #1e293b;
+      color: #94a3b8;
+    }
+    /* Huge Glowing Sync Banner */
+    .sync-banner {
+      background: rgba(239, 68, 68, 0.15);
+      border: 2px solid #ef4444;
+      border-radius: 16px;
+      padding: 0.85rem 1rem;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4rem;
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.2);
+      transition: all 0.3s ease;
+    }
+    .sync-banner.synced {
+      background: rgba(5, 150, 105, 0.15);
+      border-color: #059669;
+      box-shadow: 0 0 20px rgba(5, 150, 105, 0.3);
+    }
+    .sync-status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #f87171;
+    }
+    .sync-banner.synced .sync-status { color: #34d399; }
+    .sync-condition {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Top Bar -->
+    <div class="top-bar">
+      <div class="status-badge">
+        <span class="dot" id="status-dot"></span>
+        <span id="status-text">Connecting...</span>
+      </div>
+      <div class="trial-counter" id="trial-counter-text">Ready</div>
+    </div>
+
+    <!-- Huge Glowing Sync & Condition Banner -->
+    <div class="sync-banner" id="sync-banner">
+      <div class="sync-status" id="sync-status">
+        <span class="dot" id="sync-dot"></span>
+        <span id="sync-status-text">🟡 Connecting to Gemini Hotword App...</span>
+      </div>
+      <div class="sync-condition" id="sync-condition">
+        CONDITION: IDLE / READY
+      </div>
+    </div>
+
+    <!-- Main Card -->
+    <div class="card">
+      <div class="header-section">
+        <div class="main-icon" id="status-icon">🔊</div>
+        <h1>Soundbar Audio Node</h1>
+        <p class="sub-desc">Syncs with Evaluation Session to stream background noise & show hotwords.</p>
+      </div>
+
+      <!-- Audio Unlock & Mute Toggle -->
+      <button class="audio-toggle-btn" id="audio-toggle-btn">
+        ▶ Tap to Unlock Soundbar Audio
+      </button>
+
+      <!-- Current Noise Condition Box -->
+      <div class="info-box" id="condition-box">
+        <div class="info-label">
+          <span>Current Noise Condition</span>
+          <span class="playback-badge" id="playback-badge">⏸️ Standby</span>
+        </div>
+        <div class="info-value">
+          <span id="condition-icon">🤫</span>
+          <span id="condition-name">Idle / Ready</span>
+        </div>
+        <div class="equalizer-container" id="equalizer-container">
+          <div class="eq-bar"></div>
+          <div class="eq-bar"></div>
+          <div class="eq-bar"></div>
+          <div class="eq-bar"></div>
+          <div class="eq-bar"></div>
+          <div class="eq-bar"></div>
+          <div class="eq-bar"></div>
+        </div>
+        <div class="audio-source-detail" id="audio-source-text">Audio Source: Standby</div>
+        <div id="yt-container" style="display: none; margin-top: 0.75rem; border-radius: 8px; overflow: hidden;"></div>
+      </div>
+
+      <!-- Target Hotword Box -->
+      <div class="info-box" id="hotword-box">
+        <div class="info-label">
+          <span>Target Hotword / Keyphrase</span>
+          <span class="category-tag positive" id="category-tag">Target Hotword</span>
+        </div>
+        <div class="hotword-value" id="hotword-name">
+          HEY GOOGLE
+        </div>
+        <div class="prompt-phrase" id="prompt-phrase-text">
+          Waiting for session to start...
+        </div>
+      </div>
+
+      <!-- Remote Control Bar -->
+      <div class="controls-grid" style="grid-template-columns: 1fr;">
+        <button class="ctrl-btn primary" id="btn-remote-action" style="padding: 1rem; font-size: 1.1rem;">
+          ▶ Start Trial
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let audioCtx = null;
+    let currentNoiseNode = null;
+    let currentHtmlAudio = null;
+    let hasOpenedYtBabble = false;
+    let sseSource = null;
+    let isUnlocked = false;
+    let isMuted = false;
+    let currentTrialState = 'idle';
+    let currentCondition = 'Multi-Talker Babble';
+    let currentAudioUrl = null;
+    const audioToggleBtn = document.getElementById('audio-toggle-btn');
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+    const statusIcon = document.getElementById('status-icon');
+    const trialCounterText = document.getElementById('trial-counter-text');
+
+    const conditionBox = document.getElementById('condition-box');
+    const conditionName = document.getElementById('condition-name');
+    const conditionIcon = document.getElementById('condition-icon');
+    const playbackBadge = document.getElementById('playback-badge');
+    const equalizerContainer = document.getElementById('equalizer-container');
+    const audioSourceText = document.getElementById('audio-source-text');
+
+    const hotwordName = document.getElementById('hotword-name');
+    const promptPhraseText = document.getElementById('prompt-phrase-text');
+    const categoryTag = document.getElementById('category-tag');
+
+    const btnRemoteAction = document.getElementById('btn-remote-action');
+
+    // Optional Cloud Drive Folder IDs for remote ambient audio beds
+    const DRIVE_FOLDERS = {
+      'Multi-Talker Babble': 'YOUR_BABBLE_FOLDER_ID',
+      'Traffic / Industrial': 'YOUR_TRAFFIC_FOLDER_ID'
+    };
+
+    // Store for parsed Drive File IDs
+    const driveFileMap = {
+      'Multi-Talker Babble': [],
+      'Traffic / Industrial': []
+    };
+
+    // Auto-Sync via hidden <iframe>s when public Drive folder IDs are configured
+    function initDriveAutoSync() {
+      Object.entries(DRIVE_FOLDERS).forEach(([cond, folderId]) => {
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = `https://drive.google.com/embeddedfolderview?id=${folderId}#list`;
+        
+        iframe.onload = () => {
+          try {
+            const doc = iframe.contentDocument || iframe.contentWindow.document;
+            const html = doc.body ? doc.body.innerHTML : '';
+            const matches = html.match(/\/d\/([a-zA-Z0-9_-]{25,45})/g) ||
+                            html.match(/id=([a-zA-Z0-9_-]{25,45})/g) ||
+                            html.match(/\b(1[a-zA-Z0-9_-]{32,34})\b/g) || [];
+            
+            const ids = [...new Set(matches.map(m => {
+              const idMatch = m.match(/\/d\/([a-zA-Z0-9_-]+)/) || m.match(/id=([a-zA-Z0-9_-]+)/);
+              return idMatch ? idMatch[1] : m.trim();
+            }).filter(id => id !== folderId && id.length >= 25 && id.length <= 45))];
+
+            if (ids.length > 0) {
+              driveFileMap[cond] = ids;
+              console.log(`[DRIVE] Auto-synced ${ids.length} files for ${cond}:`, ids);
+            }
+          } catch (e) {
+            console.warn(`[DRIVE] Could not read iframe for ${cond} (CORS/Auth):`, e);
+          }
+        };
+
+        document.body.appendChild(iframe);
+      });
+    }
+    initDriveAutoSync();
+
+    // Condition to Icon and Audio Map
+    const CONDITION_ICON_MAP = {
+      'Multi-Talker Babble': '👥',
+      'Traffic / Industrial': '🚗',
+      'Calm / Indoor': '🏠',
+      'Moderate Breeze': '🍃',
+      'DON/DOFF': '🎧',
+      'Music Playback': '🎵',
+      'Bystander hotword': '🗣️',
+      'Silent': '🤫'
+    };
+
+    const CONDITION_AUDIO_MAP = {
+      'Multi-Talker Babble': '/audio/babble.mp3',
+      'Traffic / Industrial': '/audio/traffic.mp3',
+      'Calm / Indoor': '/audio/indoor.mp3',
+      'Moderate Breeze': '/audio/breeze.mp3',
+      'DON/DOFF': '/audio/dondoff.mp3',
+      'Music Playback': '/audio/music.mp3',
+      'Bystander hotword': '/audio/bystander.mp3'
+    };
+
+    // Audio Unlock & Mute Toggle Handler
+    audioToggleBtn.addEventListener('click', async () => {
+      if (!isUnlocked) {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          await audioCtx.resume();
+        }
+
+        // Play silent audio snippet to unlock iOS/Android media autoplay
+        const silentAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==');
+        silentAudio.play().catch(() => {});
+
+        isUnlocked = true;
+        isMuted = false;
+        audioToggleBtn.className = 'audio-toggle-btn active';
+        audioToggleBtn.textContent = '🔊 Soundbar Audio: Active (Tap to Mute)';
+        statusDot.classList.add('active');
+        statusText.textContent = 'Audio Active & Synced';
+        if (currentTrialState === 'playing') {
+          playNoise(currentCondition, currentAudioUrl);
+        }
+      } else {
+        if (window._globalUnlockTime && Date.now() - window._globalUnlockTime < 500) {
+          return;
+        }
+        // Toggle Mute
+        isMuted = !isMuted;
+        if (isMuted) {
+          audioToggleBtn.className = 'audio-toggle-btn muted';
+          audioToggleBtn.textContent = '🔇 Soundbar Audio: Muted (Tap to Unmute)';
+          stopNoise();
+        } else {
+          audioToggleBtn.className = 'audio-toggle-btn active';
+          audioToggleBtn.textContent = '🔊 Soundbar Audio: Active (Tap to Mute)';
+          if (currentTrialState === 'playing') {
+            playNoise(currentCondition, currentAudioUrl);
+          }
+        }
+      }
+    });
+
+    // Global Auto-Unlock on any tap/click on the page!
+    async function unlockAudioGlobal() {
+      if (!isUnlocked) {
+        try {
+          window._globalUnlockTime = Date.now();
+          if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          }
+          if (audioCtx.state === 'suspended') {
+            await audioCtx.resume();
+          }
+          const silentAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==');
+          await silentAudio.play().catch(() => {});
+          isUnlocked = true;
+          isMuted = false;
+          audioToggleBtn.className = 'audio-toggle-btn active';
+          audioToggleBtn.textContent = '🔊 Soundbar Audio: Active (Tap to Mute)';
+          statusDot.classList.add('active');
+          statusText.textContent = 'Audio Active & Synced';
+          console.log('[AUDIO] Audio unlocked globally!');
+          if (currentTrialState === 'playing') {
+            playNoise(currentCondition, currentAudioUrl);
+          }
+        } catch (e) {}
+      }
+    }
+    window.addEventListener('touchstart', unlockAudioGlobal, { once: true });
+    window.addEventListener('click', unlockAudioGlobal, { once: true });
+
+    // Remote Control Buttons (Trigger actions on Laptop Dashboard)
+    btnRemoteAction.addEventListener('click', () => {
+      if (currentTrialState === 'playing') {
+        stopNoise(); // Stop audio on soundbar instantly!
+        sendRemoteCommand('REMOTE_STOP_TRIAL'); // Tell app to stop trial!
+      } else {
+        sendRemoteCommand('REMOTE_START_TRIAL'); // Tell app to start trial!
+      }
+    });
+
+    function sendRemoteCommand(cmdType, data = {}) {
+      const payload = { event_type: cmdType, trial_data: data };
+
+      // 1. Send via PeerJS WebRTC to Phone 2!
+      if (peerConn && peerConn.open) {
+        try {
+          peerConn.send(payload);
+          console.log('[WEBRTC] Sent remote command to Phone 2:', cmdType);
+        } catch (e) {}
+      }
+
+      // 2. Send to server if available (e.g. over adb reverse)
+      fetch('/api/trials/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).catch(() => {});
+
+      // 3. BroadcastChannel for commands (sent to Tester App)
+      try {
+        if (window.BroadcastChannel) {
+          if (!window.telemetryCmdsBC) {
+            window.telemetryCmdsBC = new BroadcastChannel('hotword_telemetry_cmds');
+          }
+          window.telemetryCmdsBC.postMessage({ ...payload, sender: 'soundbar_app' });
+        }
+        localStorage.setItem('hotword_remote_cmd', JSON.stringify({ ...payload, sender: 'soundbar_app', _t: Date.now() }));
+      } catch (e) {}
+
+      // 4. Direct postMessage to window.opener if opened via 'Open Soundbar App' button!
+      if (window.opener && !window.opener.closed) {
+        try { window.opener.postMessage({ ...payload, sender: 'soundbar_app' }, '*'); } catch (e) {}
+      }
+    }
+
+    const syncBanner = document.getElementById('sync-banner');
+    const syncStatusText = document.getElementById('sync-status-text');
+    const syncCondition = document.getElementById('sync-condition');
+
+    // Direct postMessage listener from window.opener!
+    window.addEventListener('message', (event) => {
+      if (event.data && event.data.sender === 'tester_app') {
+        console.log('[POST_MESSAGE] Soundbar received event from opener:', event.data);
+        handleServerEvent(event.data);
+      }
+    });
+
+    // Persistent BroadcastChannel to listen for events from Tester App!
+    window.telemetryEventsBC = (window.BroadcastChannel) ? new BroadcastChannel('hotword_telemetry_events') : null;
+    if (window.telemetryEventsBC) {
+      window.telemetryEventsBC.onmessage = (event) => {
+        if (event.data && event.data.sender !== 'soundbar_app') {
+          console.log('[BROADCAST_CHANNEL] Soundbar received event:', event.data);
+          handleServerEvent(event.data);
+        }
+      };
+    }
+
+    // Fail-safe localStorage polling loop for same-device / web testing (100ms)
+    // Only accept events that are no older than 10 seconds prior to page load to avoid playing ancient sessions!
+    let lastSeenEventTime = Date.now() - 10000;
+    setInterval(() => {
+      try {
+        const raw = localStorage.getItem('hotword_last_event');
+        if (raw) {
+          const ev = JSON.parse(raw);
+          if (ev._t && ev._t > lastSeenEventTime && ev.sender !== 'soundbar_app') {
+            lastSeenEventTime = ev._t;
+            console.log('[LOCAL_STORAGE] Soundbar received event via polling:', ev);
+            handleServerEvent(ev);
+          }
+        }
+      } catch (e) {}
+    }, 100);
+
+    function initSSE() {
+      // Listen to storage events as well
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'hotword_last_event' && e.newValue) {
+          try {
+            const data = JSON.parse(e.newValue);
+            if (data._t && data._t > lastSeenEventTime && data.sender !== 'soundbar_app') {
+              lastSeenEventTime = data._t;
+              handleServerEvent(data);
+            }
+          } catch (err) {}
+        }
+      });
+
+      if (sseSource) sseSource.close();
+      sseSource = new EventSource('/api/stream');
+
+      sseSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          handleServerEvent(data);
+        } catch (e) {}
+      };
+
+      sseSource.onerror = () => {
+        // Do NOT overwrite statusText if WebRTC or BroadcastChannel is already active!
+        if (!peerConn || !peerConn.open) {
+          statusText.textContent = 'Sync Ready (Web)';
+          statusDot.classList.add('active');
+        }
+      };
+
+      sseSource.onopen = () => {
+        statusText.textContent = 'Connected & Synced (SSE)';
+        statusDot.classList.add('active');
+        syncBanner.classList.add('synced');
+        syncStatusText.textContent = '🟢 Synced with Gemini Hotword App (SSE)';
+      };
+    }
+
+        let peerClient = null;
+    let peerConn = null;
+    let connectTimeout = null;
+    let reconnectTimer = null;
+
+    function scheduleReconnect(sessionCode) {
+      if (reconnectTimer) return;
+      reconnectTimer = setInterval(() => {
+        if (!peerConn || !peerConn.open) {
+          console.log('[WEBRTC] Retrying connection to', sessionCode);
+          initPeerClient();
+        } else {
+          clearInterval(reconnectTimer);
+          reconnectTimer = null;
+        }
+      }, 2000);
+    }
+
+    function initPeerClient() {
+      if (!window.Peer) {
+        setTimeout(initPeerClient, 500);
+        return;
+      }
+
+      const urlParams = new URLSearchParams(window.location.search);
+      let sessionCode = urlParams.get('session') || 'P01';
+
+      sessionCode = sessionCode.trim();
+      localStorage.setItem('soundbar_session_code', sessionCode);
+
+      syncStatusText.innerHTML = `🟡 Searching for Gemini Hotword App (Code: <b>${sessionCode}</b>)...`;
+      statusText.textContent = `Searching (Code: ${sessionCode})...`;
+      statusDot.classList.remove('active');
+      syncBanner.classList.remove('synced');
+
+      scheduleReconnect(sessionCode);
+
+      try {
+        if (peerClient) {
+          try { peerClient.destroy(); } catch (e) {}
+        }
+        peerClient = new Peer();
+
+        peerClient.on('open', () => {
+          const targetId = `gemini-hotwords-qa-${sessionCode}`;
+          console.log(`[WEBRTC] Connecting to ${targetId}...`);
+          
+          peerConn = peerClient.connect(targetId, { reliable: true });
+
+          peerConn.on('open', () => {
+            if (reconnectTimer) {
+              clearInterval(reconnectTimer);
+              reconnectTimer = null;
+            }
+            console.log('[WEBRTC] Connected to Gemini Hotword App!');
+            statusText.textContent = `Connected (Code: ${sessionCode})`;
+            statusDot.classList.add('active');
+            syncBanner.classList.add('synced');
+            syncStatusText.innerHTML = `🟢 Synced with Gemini Hotword App (Code: <b>${sessionCode}</b>)`;
+            
+            // Request the current trial state immediately on connect!
+            sendRemoteCommand('REQUEST_CURRENT_TRIAL');
+          });
+
+          peerConn.on('data', (data) => {
+            console.log('[WEBRTC] Received event from Phone 2:', data);
+            if (data && data.event_type) {
+              handleServerEvent(data);
+            }
+          });
+
+          peerConn.on('close', () => {
+            console.warn('[WEBRTC] Connection closed, will retry...');
+            statusDot.classList.remove('active');
+            syncBanner.classList.remove('synced');
+            syncStatusText.innerHTML = `🟡 Searching for Gemini Hotword App (Code: <b>${sessionCode}</b>)...`;
+            scheduleReconnect(sessionCode);
+          });
+
+          peerConn.on('error', (err) => {
+            console.warn('[WEBRTC] Connection error:', err);
+            scheduleReconnect(sessionCode);
+          });
+        });
+
+        peerClient.on('error', (err) => {
+          console.warn('[WEBRTC] PeerJS client error:', err);
+          scheduleReconnect(sessionCode);
+        });
+      } catch (e) {
+        console.warn('[WEBRTC] PeerJS not available:', e);
+        scheduleReconnect(sessionCode);
+      }
+    }
+    initPeerClient();
+    initSSE();
+    // Automatically ping host across all channels (Window opener, BroadcastChannel, WebRTC)
+    function pingHost() {
+      sendRemoteCommand('REQUEST_CURRENT_TRIAL');
+    }
+    
+    pingHost();
+    const initialSyncInterval = setInterval(() => {
+      if (syncBanner && syncBanner.classList.contains('synced')) {
+        clearInterval(initialSyncInterval);
+      } else {
+        pingHost();
+      }
+    }, 600);
+
+
+    function handleServerEvent(ev) {
+      if (!ev) return;
+      
+      if (ev.event_type === 'TRIAL_PREPARED') {
+        currentTrialState = 'idle';
+        btnRemoteAction.textContent = '▶ Start Trial';
+        updateTrialDisplay(ev, false);
+        playbackBadge.textContent = '⏸️ Standby (Awaiting Start)';
+        playbackBadge.classList.remove('playing');
+        conditionBox.classList.remove('active-playing');
+        equalizerContainer.classList.remove('animated');
+        statusIcon.textContent = '🔊';
+        audioSourceText.textContent = 'Audio Source: Standby (Press Start Trial to begin noise)';
+        stopNoise();
+      } else if (ev.event_type === 'TRIAL_STARTED') {
+        currentTrialState = 'playing';
+        btnRemoteAction.textContent = '⏹ Stop Trial';
+        updateTrialDisplay(ev, true);
+        currentCondition = ev.condition || 'Default Noise';
+        currentAudioUrl = ev.audio_url || ev.b_path || CONDITION_AUDIO_MAP[currentCondition] || null;
+        if (!isMuted && isUnlocked) playNoise(currentCondition, currentAudioUrl);
+      } else if (ev.event_type === 'TRIAL_STOPPED' || ev.event_type === 'TRIAL_COMPLETED') {
+        currentTrialState = 'completed';
+        btnRemoteAction.textContent = '▶ Start Trial';
+        updateTrialDisplay(ev, false);
+        playbackBadge.textContent = '⏸️ Standby';
+        playbackBadge.classList.remove('playing');
+        conditionBox.classList.remove('active-playing');
+        equalizerContainer.classList.remove('animated');
+        statusIcon.textContent = '🔊';
+        audioSourceText.textContent = 'Audio Source: Standby';
+        stopNoise();
+      } else {
+        // Handle REQUEST_CURRENT_TRIAL or any other event
+        updateTrialDisplay(ev, false);
+        if (currentTrialState !== 'playing') {
+          stopNoise();
+        }
+      }
+    }
+
+    function updateTrialDisplay(ev, isPlaying = false) {
+      const cond = ev.condition || 'Idle / Ready';
+      const hotword = (ev.phrase && ev.phrase !== 'NONE') ? ev.phrase : (ev.target_hotword && ev.target_hotword !== 'NONE' && ev.target_hotword !== 'NON_HOTWORD' ? ev.target_hotword : 'HEY GOOGLE');
+      const prompt = ev.prompt_text || (ev.phrase ? `Now say: '${ev.phrase}'` : 'Ready for next trial');
+      const isDistractor = ev.category === 'distractor';
+      const pid = ev.participant_id || ev.participantId || localStorage.getItem('soundbar_session_code') || 'P01';
+
+      syncBanner.classList.add('synced');
+      syncStatusText.innerHTML = `🟢 Connected to <b>${pid}</b>`;
+      syncCondition.textContent = `CONDITION: ${cond.toUpperCase()}`;
+      statusText.textContent = `Connected to ${pid}`;
+      statusDot.classList.add('active');
+
+      if (ev.trial_index && ev.total_trials) {
+        trialCounterText.textContent = `Trial ${ev.trial_index} / ${ev.total_trials}`;
+      }
+
+      conditionName.textContent = cond;
+      conditionIcon.textContent = CONDITION_ICON_MAP[cond] || '🔊';
+
+      hotwordName.textContent = hotword.toUpperCase();
+      promptPhraseText.textContent = prompt;
+
+      categoryTag.textContent = isDistractor ? 'Distractor / Negative' : 'Target Hotword';
+      categoryTag.className = `category-tag ${isDistractor ? 'distractor' : 'positive'}`;
+
+      if (isPlaying) {
+        playbackBadge.textContent = '🔊 Playing Noise';
+        playbackBadge.classList.add('playing');
+        conditionBox.classList.add('active-playing');
+        equalizerContainer.classList.add('animated');
+        statusIcon.textContent = '🎶';
+      } else {
+        playbackBadge.textContent = '⏸️ Queued / Ready';
+        playbackBadge.classList.remove('playing');
+        conditionBox.classList.remove('active-playing');
+        equalizerContainer.classList.remove('animated');
+      }
+    }
+
+    const LOCAL_AUDIO_MAP = {
+      'Multi-Talker Babble': [
+        'audio/Multi_Talker_Babble/MTB1.mp3', 'audio/Multi_Talker_Babble/MTB2.mp3', 'audio/Multi_Talker_Babble/MTB3.mp3',
+        'audio/Multi_Talker_Babble/MTB4.mp3', 'audio/Multi_Talker_Babble/MTB5.mp3', 'audio/Multi_Talker_Babble/MTB6.mp3'
+      ],
+      'Traffic / Industrial': [
+        'audio/Traffic_Industrial/TRA3.mp3'
+        
+      ]
+    };
+
+    // Auto-discover any .wav files in audio/ when running via server.rb!
+    fetch('/api/audio_files').then(r => r.json()).then(data => {
+      if (data && typeof data === 'object') {
+        Object.entries(data).forEach(([cond, files]) => {
+          if (files && files.length > 0) {
+            LOCAL_AUDIO_MAP[cond] = files;
+            console.log(`[AUDIO] Discovered ${files.length} audio files for ${cond}:`, files);
+          }
+        });
+      }
+    }).catch(() => {});
+
+
+    function playNoise(conditionNameVal, audioUrl) {
+      if (!isUnlocked || isMuted) {
+        audioSourceText.textContent = isMuted ? "🔇 Audio Muted" : "⚠️ Audio Locked — Tap top button";
+        return;
+      }
+      stopNoise();
+
+      const cNorm = (conditionNameVal || '').toLowerCase();
+
+      if (cNorm.includes('silent')) {
+        audioSourceText.textContent = "Audio Source: Silent (No background noise)";
+        return;
+      } else if (cNorm.includes('traffic') || cNorm.includes('industrial')) {
+        const trackUrl = "/audio/Traffic_Industrial/TRA3.mp3?v=2";
+        
+        audioSourceText.textContent = "Playing Audio: Traffic / Industrial (TRA3.mp3)";
+        console.log("[AUDIO] Playing Traffic Audio: " + trackUrl);
+        sendRemoteCommand('REMOTE_AUDIO_TRACK', { track: trackUrl });
+
+        currentHtmlAudio = new Audio(trackUrl);
+        currentHtmlAudio.loop = true;
+        currentHtmlAudio.volume = 0.85;
+
+        currentHtmlAudio.play().then(() => {
+          console.log("[AUDIO] Successfully playing " + trackUrl);
+          playbackBadge.textContent = '🔊 Noise Active';
+          playbackBadge.classList.add('playing');
+          conditionBox.classList.add('active-playing');
+          equalizerContainer.classList.add('animated');
+        }).catch(err => {
+          console.warn("[AUDIO] audio play failed:", err);
+          audioSourceText.textContent = "⚠️ Audio Playback Failed: " + err.message;
+        });
+        return;
+      } else if (cNorm.includes('babble') || cNorm.includes('multi-talker') || cNorm.includes('multi_talker')) {
+        const trackUrl = "/audio/Multi_Talker_Babble/babble.mp3?v=2";
+
+        audioSourceText.textContent = "Playing Audio: Multi-Talker Babble (babble.mp3)";
+        console.log("[AUDIO] Playing Multi-Talker Babble Audio: " + trackUrl);
+        sendRemoteCommand('REMOTE_AUDIO_TRACK', { track: trackUrl });
+
+        currentHtmlAudio = new Audio(trackUrl);
+        currentHtmlAudio.loop = true;
+        currentHtmlAudio.volume = 0.85;
+
+        currentHtmlAudio.play().then(() => {
+          console.log("[AUDIO] Successfully playing " + trackUrl);
+          playbackBadge.textContent = '🔊 Noise Active';
+          playbackBadge.classList.add('playing');
+          conditionBox.classList.add('active-playing');
+          equalizerContainer.classList.add('animated');
+        }).catch(err => {
+          console.warn("[AUDIO] mp3 play failed, trying fallback:", err);
+          currentHtmlAudio = new Audio("audio/Multi_Talker_Babble/babble.mp3?v=2");
+          currentHtmlAudio.loop = true;
+          currentHtmlAudio.volume = 0.85;
+          currentHtmlAudio.play().catch(e2 => {
+            audioSourceText.textContent = "⚠️ Audio Playback Failed: " + e2.message;
+          });
+        });
+        return;
+      }
+
+      audioSourceText.textContent = "Audio Source: " + conditionNameVal + " (No automated noise)";
+    }
+
+    function stopNoise() {
+      if (currentHtmlAudio) {
+        currentHtmlAudio.pause();
+        currentHtmlAudio.currentTime = 0;
+        currentHtmlAudio = null;
+      }
+      const ytContainer = document.getElementById('yt-container');
+      if (ytContainer) {
+        ytContainer.style.display = 'none';
+        ytContainer.innerHTML = '';
+      }
+      audioSourceText.textContent = "Audio Source: Stopped";
+    }
+
+    </script>
+</body>
+</html>

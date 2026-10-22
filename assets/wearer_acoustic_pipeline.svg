@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 440" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#090d16"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <marker id="arrowCyan" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8"/>
+    </marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#34d399"/>
+    </marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#fbbf24"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="440" rx="16" fill="url(#bg)" stroke="#1e293b" stroke-width="2"/>
+
+  <!-- Header -->
+  <text x="480" y="38" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="19" font-weight="700" text-anchor="middle">
+    Wearer Multi-Condition Acoustic Wake-Word &amp; Sub-Millisecond Earcon Latency Pipeline
+  </text>
+  <text x="480" y="60" fill="#94a3b8" font-family="system-ui, -apple-system, sans-serif" font-size="12.5" text-anchor="middle">
+    Dual-Channel Wireless Mic Isolation (TX1 Near-Field Voice / TX2 Earcon Loopback) + Multi-Speaker Acoustic Noise Field
+  </text>
+
+  <!-- Left Block: Multi-Condition Noise Field -->
+  <rect x="28" y="88" width="250" height="316" rx="12" fill="url(#card)" stroke="#334155" stroke-width="1.5"/>
+  <text x="153" y="116" fill="#fbbf24" font-family="system-ui, sans-serif" font-size="14" font-weight="700" text-anchor="middle">
+    1. Multi-Condition Noise Field
+  </text>
+  <text x="153" y="134" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="11" text-anchor="middle">
+    Calibrated dBA SPL Surround Rig
+  </text>
+
+  <g font-family="system-ui, sans-serif" font-size="11.5" fill="#e2e8f0">
+    <rect x="46" y="150" width="214" height="32" rx="6" fill="#0f172a" stroke="#1e293b"/>
+    <circle cx="64" cy="166" r="5" fill="#34d399"/>
+    <text x="78" y="170">Silent Baseline (&lt; 35 dBA)</text>
+
+    <rect x="46" y="190" width="214" height="32" rx="6" fill="#0f172a" stroke="#1e293b"/>
+    <circle cx="64" cy="206" r="5" fill="#38bdf8"/>
+    <text x="78" y="210">Wind / Breeze Fan (2.5 m/s)</text>
+
+    <rect x="46" y="230" width="214" height="32" rx="6" fill="#0f172a" stroke="#1e293b"/>
+    <circle cx="64" cy="246" r="5" fill="#a78bfa"/>
+    <text x="78" y="250">Background Music (62–72 dBA)</text>
+
+    <rect x="46" y="270" width="214" height="32" rx="6" fill="#0f172a" stroke="#1e293b"/>
+    <circle cx="64" cy="286" r="5" fill="#fbbf24"/>
+    <text x="78" y="290">Multi-Talker Cafe Babble</text>
+
+    <rect x="46" y="310" width="214" height="32" rx="6" fill="#0f172a" stroke="#1e293b"/>
+    <circle cx="64" cy="326" r="5" fill="#f97316"/>
+    <text x="78" y="330">Urban Street Traffic Noise</text>
+
+    <rect x="46" y="350" width="214" height="32" rx="6" fill="#0f172a" stroke="#1e293b"/>
+    <circle cx="64" cy="366" r="5" fill="#f43f5e"/>
+    <text x="78" y="370">Industrial High-SPL (78+ dBA)</text>
+  </g>
+
+  <!-- Center Block: Wearer & Smart Glasses + Dual TX Mics -->
+  <rect x="318" y="88" width="300" height="316" rx="12" fill="url(#card)" stroke="#334155" stroke-width="1.5"/>
+  <text x="468" y="116" fill="#38bdf8" font-family="system-ui, sans-serif" font-size="14" font-weight="700" text-anchor="middle">
+    2. Wearer &amp; Dual-TX Capture
+  </text>
+  <text x="468" y="134" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="11" text-anchor="middle">
+    Hardware-Synchronized Stereo Split (48 kHz)
+  </text>
+
+  <!-- TX1 Card -->
+  <rect x="338" y="154" width="260" height="96" rx="8" fill="#0f172a" stroke="#0284c7" stroke-width="1.5"/>
+  <text x="354" y="178" fill="#38bdf8" font-family="system-ui, sans-serif" font-size="12.5" font-weight="700">
+    Left Channel (TX1) — Wearer Lapel Mic
+  </text>
+  <text x="354" y="198" fill="#cbd5e1" font-family="system-ui, sans-serif" font-size="11">
+    • Clipped to wearer collar (15 cm from mouth)
+  </text>
+  <text x="354" y="216" fill="#cbd5e1" font-family="system-ui, sans-serif" font-size="11">
+    • Captures clean utterance onset &amp; end-of-speech
+  </text>
+  <text x="354" y="234" fill="#38bdf8" font-family="monospace" font-size="10.5">
+    t_speech_end = VAD_Trailing_Edge(TX1)
+  </text>
+
+  <!-- TX2 Card -->
+  <rect x="338" y="268" width="260" height="114" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="1.5"/>
+  <text x="354" y="292" fill="#34d399" font-family="system-ui, sans-serif" font-size="12.5" font-weight="700">
+    Right Channel (TX2) — Temple Speaker Mic
+  </text>
+  <text x="354" y="312" fill="#cbd5e1" font-family="system-ui, sans-serif" font-size="11">
+    • Acoustic coupler at smart glasses open-ear speaker
+  </text>
+  <text x="354" y="330" fill="#cbd5e1" font-family="system-ui, sans-serif" font-size="11">
+    • Isolates assistant activation chime (Earcon)
+  </text>
+  <text x="354" y="348" fill="#cbd5e1" font-family="system-ui, sans-serif" font-size="11">
+    • Combined with ADB logcat DSP trigger telemetry
+  </text>
+  <text x="354" y="368" fill="#34d399" font-family="monospace" font-size="10.5">
+    t_earcon_onset = Goertzel_2Tone(TX2)
+  </text>
+
+  <!-- Right Block: Real-Time DSP & Latency Engine -->
+  <rect x="658" y="88" width="274" height="316" rx="12" fill="url(#card)" stroke="#334155" stroke-width="1.5"/>
+  <text x="795" y="116" fill="#34d399" font-family="system-ui, sans-serif" font-size="14" font-weight="700" text-anchor="middle">
+    3. Goertzel Latency &amp; Metrics
+  </text>
+  <text x="795" y="134" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="11" text-anchor="middle">
+    Two-Note Chime Detector + ADB Telemetry
+  </text>
+
+  <!-- Spectrogram / Chime Graphic -->
+  <rect x="678" y="154" width="234" height="105" rx="8" fill="#090d16" stroke="#1e293b"/>
+  <text x="690" y="174" fill="#94a3b8" font-family="monospace" font-size="10">Goertzel Sliding DFT (247 Hz → 392 Hz)</text>
+  <!-- Note 1 bar -->
+  <rect x="705" y="212" width="55" height="14" rx="3" fill="#38bdf8"/>
+  <text x="732" y="207" fill="#38bdf8" font-family="monospace" font-size="10" text-anchor="middle">B3 (247Hz)</text>
+  <!-- Note 2 bar -->
+  <rect x="770" y="190" width="65" height="14" rx="3" fill="#34d399"/>
+  <text x="802" y="185" fill="#34d399" font-family="monospace" font-size="10" text-anchor="middle">G4 (392Hz)</text>
+  <!-- Latency bracket -->
+  <line x1="690" y1="242" x2="895" y2="242" stroke="#475569" stroke-width="1"/>
+  <text x="795" y="253" fill="#fbbf24" font-family="monospace" font-size="10" text-anchor="middle">Δt = t_earcon_onset − t_speech_end</text>
+
+  <!-- Output Metrics Box -->
+  <rect x="678" y="274" width="234" height="108" rx="8" fill="#0f172a" stroke="#334155"/>
+  <text x="694" y="296" fill="#f8fafc" font-family="system-ui, sans-serif" font-size="12" font-weight="700">
+    Exported Per-Trial Telemetry:
+  </text>
+  <text x="694" y="316" fill="#cbd5e1" font-family="system-ui, sans-serif" font-size="11">
+    • True Accept Rate (TAR %) by dBA &amp; Wind
+  </text>
+  <text x="694" y="334" fill="#cbd5e1" font-family="system-ui, sans-serif" font-size="11">
+    • End-to-End Earcon Latency (P50 / P95 ms)
+  </text>
+  <text x="694" y="352" fill="#cbd5e1" font-family="system-ui, sans-serif" font-size="11">
+    • Speech-to-DSP vs. DSP-to-Earcon Split
+  </text>
+  <text x="694" y="370" fill="#cbd5e1" font-family="system-ui, sans-serif" font-size="11">
+    • Per-Trial Stereo WAV + Peak SNR dB
+  </text>
+
+  <!-- Connecting Arrows -->
+  <line x1="278" y1="246" x2="314" y2="246" stroke="#fbbf24" stroke-width="2.5" marker-end="url(#arrowAmber)"/>
+  <line x1="618" y1="202" x2="654" y2="202" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#arrowCyan)"/>
+  <line x1="618" y1="325" x2="654" y2="325" stroke="#34d399" stroke-width="2.5" marker-end="url(#arrowGreen)"/>
+</svg>

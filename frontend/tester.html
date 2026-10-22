@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gemini Hotwords QA Evaluation Testbed</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css?v=1790036641">
+  <script src="peerjs.min.js"></script>
+  <script src="webadb.js"></script>
+  <script>if (typeof Peer === 'undefined') { document.write('<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"><\/script>'); }</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&family=Google+Sans+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&family=Google+Sans+Mono:wght@400;500&display=swap" rel="stylesheet"></noscript>
+</head>
+<body>
+  <!-- Participant Start Modal (Gate Screen) -->
+  <div class="session-modal-backdrop" id="session-start-modal">
+    <div class="session-modal-card">
+      <div class="modal-icon">
+        <svg viewBox="0 0 24 24" width="32" height="32" fill="var(--color-primary)"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+      </div>
+      <div>
+        <h2 class="modal-title">New Evaluation Session</h2>
+        <p class="modal-subtitle">Enter the participant or evaluator ID to begin test trials.</p>
+      </div>
+
+      <form id="form-start-modal" onsubmit="if(window.beginEvaluation) window.beginEvaluation(event); return false;" style="display: flex; flex-direction: column; gap: 1rem;">
+        <div class="form-group" style="text-align: left;">
+          <label for="modal-participant-id" style="font-weight: 600; font-size: 0.9rem;">Participant / Evaluator ID *</label>
+          <input type="text" id="modal-participant-id" class="form-input" placeholder="e.g. P01, Evaluator_01" value="P01" required autofocus style="font-size: 1.1rem; padding: 0.75rem 1rem; border-color: var(--color-primary);">
+        </div>
+
+        <div class="form-group" style="text-align: left;">
+          <label for="modal-select-ai-assistant" style="font-weight: 600; font-size: 0.9rem;">AI Assistant</label>
+          <select id="modal-select-ai-assistant" class="form-select" style="font-size: 1rem; padding: 0.65rem 0.85rem; border-color: var(--color-primary);">
+            <option value="Gemini Live - Android" selected>Gemini Live - Android</option>
+            <option value="Gemini Live - iOS">Gemini Live - iOS</option>
+            <option value="Meta AI">Meta AI</option>
+          </select>
+        </div>
+
+        <div class="form-group" style="text-align: left;">
+          <label for="modal-select-conversation-mode" style="font-weight: 600; font-size: 0.9rem;">Conversation Mode</label>
+          <select id="modal-select-conversation-mode" class="form-select" style="font-size: 1rem; padding: 0.65rem 0.85rem; border-color: var(--color-primary);">
+            <option value="Wearer" selected>Wearer</option>
+            <option value="Bystander">Bystander</option>
+          </select>
+        </div>
+
+        <div class="form-group" style="text-align: left;">
+          <label for="modal-select-suite" style="font-weight: 600; font-size: 0.9rem;">Evaluation Suite</label>
+          <select id="modal-select-suite" class="form-select">
+            <option value="gemini_hotwords_suite.json" selected>Gemini Hotwords Suite (30 Hotword Recording + 90 Noise Environment = 120 Trials)</option>
+            <option value="gemini_hotwords_suite_noise90.json">Gemini Hotwords Suite - Noise Only (90 Trials)</option>
+            <option value="gemini_hotwords_suite_120.json">Gemini Hotword Robustness Suite with Distractors (120 Trials)</option>
+            <option value="meta_hotwords_suite.json">Meta AI Hotwords Suite (6 Conditions × 3 Phrases × 5 Repeats = 90 Trials)</option>
+            <option value="gemini_bystander_suite.json">Gemini Bystander Suite (12 Degrees × 3 Distances × 3 Phrases × 2 Vocal Levels = 216 Trials)</option>
+            <option value="meta_bystander_suite.json">Meta AI Bystander Suite (12 Degrees × 3 Distances × 2 Phrases × 2 Vocal Levels = 144 Trials)</option>
+          </select>
+        </div>
+
+        <div class="form-group" style="text-align: left; background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(14, 165, 233, 0.25); padding: 0.65rem 0.85rem; border-radius: 8px;">
+          <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.55rem; cursor: pointer; font-weight: 600; color: var(--text-main); margin: 0;">
+            <input type="checkbox" id="modal-check-audio-recording" checked style="width: 17px; height: 17px; accent-color: var(--color-primary); cursor: pointer;">
+            <span>🎙️ Enable Audio Recording <span style="font-weight: 400; font-size: 0.82rem; color: var(--text-muted);">(Uncheck for No-Audio / Bystander runs)</span></span>
+          </label>
+        </div>
+
+        <div class="form-group" style="text-align: left;">
+          <label class="checkbox-label">
+            <input type="checkbox" id="modal-check-randomize" checked>
+            Randomize / Shuffle Trial Sequence
+          </label>
+        </div>
+
+        <div class="form-group" style="text-align: left;">
+          <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+            <input type="checkbox" id="modal-check-distractors">
+            Include Non-Hotwords (Distractors — 120 Trials Total)
+          </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg" id="btn-modal-start-session" onclick="if(window.beginEvaluation) window.beginEvaluation(event);" style="width: 100%; justify-content: center; margin-top: 0.5rem; padding: 0.85rem; font-size: 1rem;">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          Begin Evaluation Session
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div class="app-container">
+    <!-- Soundbar Session Code & Link Banner -->
+    <div id="session-code-container" style="margin-bottom: 1rem;"></div>
+
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="brand-section">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-title">Gemini Hotwords QA Tester</h1>
+          <p class="brand-subtitle">Dual-Phone Automated Telemetry & Precision Latency Collector</p>
+        </div>
+      </div>
+
+      <!-- Device & Session Badges -->
+      <div class="header-badges">
+        <div class="badge session-badge" id="ai-assistant-badge" style="cursor: pointer;" title="Active AI Assistant (Click to change)">
+          <span class="badge-label">AI:</span>
+          <span class="badge-val" id="ai-assistant-badge-val">Gemini Live - Android</span>
+        </div>
+        <div class="badge session-badge" id="conversation-mode-badge" style="cursor: pointer;" title="Active Conversation Mode (Click to change)">
+          <span class="badge-label">Mode:</span>
+          <span class="badge-val" id="conversation-mode-badge-val">Wearer</span>
+        </div>
+        <div class="badge session-badge" id="btn-header-change-participant" style="cursor: pointer;" title="Click to change participant ID">
+          <span class="badge-label">Participant:</span>
+          <span class="badge-val" id="participant-badge-val">P01 ✎</span>
+        </div>
+        <div class="badge session-badge" id="stage-status-badge" style="cursor: pointer;" title="Zaber Rotary Stage Status">
+          <span class="badge-label">Stage:</span>
+          <span class="badge-val" id="stage-status-val">Checking...</span>
+        </div>
+        <div class="badge session-badge" id="audio-input-badge" title="Active Audio Input Microphone (Deity W.Lav / Mac)">
+          <span class="badge-label">🎤 Mic:</span>
+          <select id="select-audio-input" style="background: transparent; border: none; font-size: 0.8rem; font-weight: 600; color: var(--text-main); cursor: pointer; max-width: 140px; text-overflow: ellipsis; outline: none;">
+            <option value="">Default Mic</option>
+          </select>
+        </div>
+        <div class="badge session-badge" id="audio-rec-badge" style="cursor: pointer;" title="Click to toggle Audio Recording ON / OFF">
+          <span class="badge-label">Audio Rec:</span>
+          <span class="badge-val" id="audio-rec-val" style="color: #64748b;">Standby</span>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="nav-tabs">
+        <button class="nav-tab active" data-view="runner">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          Trial Runner
+        </button>
+        <button class="nav-tab" data-view="setup">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+          Setup & Devices
+        </button>
+      </nav>
+    </header>
+
+    <!-- Main Views Container -->
+    <main class="app-main">
+      <!-- VIEW 1: TRIAL RUNNER -->
+      <section class="view-section active" id="view-runner">
+        <!-- Runner Top Tracker Bar -->
+        <div class="tracker-bar">
+          <div class="tracker-left">
+            <div class="trial-progress-info">
+              <span class="progress-label">Trial Progress</span>
+              <span class="progress-count" id="trial-counter-text">Trial 1 of 120</span>
+              <span class="progress-pct" id="trial-pct-text">(0.3%)</span>
+            </div>
+            <div class="progress-bar-container">
+              <div class="progress-bar-fill" id="trial-progress-bar" style="width: 0.3%;"></div>
+            </div>
+            <div id="trial-platform-label" style="font-size: 0.82rem; font-weight: 600; color: var(--color-primary); margin-top: 0.35rem;">
+              Gemini Live - Android
+            </div>
+          </div>
+
+          <div class="tracker-pills">
+            <div class="tracker-pill category-pill positive" id="category-pill">
+              <strong class="pill-value" id="current-category-val">Positive Target</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Zaber Rotary Stage Controller Widget -->
+        <div id="stage-control-panel" class="stage-control-panel" style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 12px; padding: 0.75rem 1rem; margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(56, 189, 248, 0.15); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+              🔄
+            </div>
+            <div>
+              <div style="font-size: 0.9rem; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 0.5rem;">
+                <span>Zaber Rotary Stage:</span>
+                <span id="stage-current-angle-label" style="color: #38bdf8; font-family: monospace; font-size: 1.05rem;">0.0°</span>
+                <span id="stage-moving-indicator" class="hidden" style="background: #f59e0b; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 700;">MOVING</span>
+              </div>
+              <div id="stage-device-info" style="font-size: 0.75rem; color: #94a3b8;">Checking Zaber Stage connection...</div>
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
+            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: #cbd5e1; cursor: pointer; margin-right: 0.4rem; background: rgba(255,255,255,0.06); padding: 0.35rem 0.65rem; border-radius: 6px;">
+              <input type="checkbox" id="stage-auto-rotate-check" checked style="accent-color: #0284c7; width: 15px; height: 15px; cursor: pointer;">
+              <span style="font-weight: 600;">Auto-Rotate with Trials</span>
+            </label>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="window.stageConnect && window.stageConnect()" title="Connect / Reconnect Zaber Stage" style="padding: 0.35rem 0.65rem; font-size: 0.8rem; font-weight: 600; border-color: rgba(56, 189, 248, 0.45); color: #38bdf8;">🔌 Connect</button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="window.stageHome && window.stageHome()" title="Home stage to 0°" style="padding: 0.35rem 0.65rem; font-size: 0.8rem; font-weight: 600;">⌂ Home</button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="window.stageMove && window.stageMove(0)" style="padding: 0.35rem 0.6rem; font-size: 0.8rem;">0°</button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="window.stageMove && window.stageMove(30)" style="padding: 0.35rem 0.6rem; font-size: 0.8rem;">30°</button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="window.stageMove && window.stageMove(90)" style="padding: 0.35rem 0.6rem; font-size: 0.8rem;">90°</button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="window.stageMove && window.stageMove(180)" style="padding: 0.35rem 0.6rem; font-size: 0.8rem;">180°</button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="window.stageMove && window.stageMove(270)" style="padding: 0.35rem 0.6rem; font-size: 0.8rem;">270°</button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="window.stageJog && window.stageJog(-15)" title="Jog -15°" style="padding: 0.35rem 0.55rem; font-size: 0.8rem;">-15°</button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="window.stageJog && window.stageJog(15)" title="Jog +15°" style="padding: 0.35rem 0.55rem; font-size: 0.8rem;">+15°</button>
+          </div>
+        </div>
+
+        <!-- Prompt Center Stage -->
+        <div class="prompt-stage-container">
+          <div class="prompt-card" id="prompt-card">
+            <!-- Condition Banner (Always Visible, No Emoji) -->
+            <div class="condition-change-banner" id="condition-change-banner">
+              <span class="banner-text" id="condition-change-banner-text">CONDITION: SILENT</span>
+            </div>
+
+            <div class="prompt-card-header">
+              <span class="card-eyebrow">PROMPT INSTRUCTION (INTENDED ACTION)</span>
+              
+            </div>
+
+            <div class="prompt-text-wrapper">
+              <h2 class="prompt-display" id="prompt-display-text">Select a suite to begin testing</h2>
+              <div class="live-speech-pill hidden" id="live-speech-pill" style="margin-top: 10px; font-size: 0.92rem; color: #38bdf8; background: rgba(56, 189, 248, 0.1); padding: 5px 14px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(56, 189, 248, 0.35);">
+                <span>🗣️ Heard:</span> <span id="live-speech-text" style="font-weight: 600; color: #f1f5f9;">—</span>
+              </div>
+            </div>
+
+            <!-- Active Status Banner & Visualizer -->
+            <div class="stage-state-box" id="stage-state-box">
+              <div class="state-indicator-badge state-idle" id="state-indicator-badge">
+                <span class="state-icon" id="state-icon">⏸</span>
+                <span class="state-text" id="state-text">Ready — Press 'Start Trial'</span>
+              </div>
+              <div class="runner-noise-indicator hidden" id="runner-noise-indicator" style="display: none; align-items: center; gap: 0.35rem; padding: 0.3rem 0.75rem; border-radius: 9999px; background: #ecfdf5; border: 1px solid #10b981; color: #047857; font-size: 0.8rem; font-weight: 700;">
+                <span style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; display: inline-block;"></span>
+                <span id="runner-noise-text">🔊 Background Noise Active</span>
+              </div>
+
+              <!-- Audio & Detection Visual Feedback -->
+              <div class="audio-feedback-strip" style="display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                <!-- Wireless TX Channel Selector -->
+                <div class="wireless-tx-selector" style="display: inline-flex; align-items: center; gap: 4px; background: rgba(15, 23, 42, 0.75); padding: 3px 6px; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.35);">
+                  <span style="font-size: 0.7rem; font-weight: 700; color: #94a3b8; margin-right: 2px;">REC TX:</span>
+                  <button type="button" class="tx-badge active-tx1" id="runner-btn-tx1" onclick="window.setActiveWirelessChannel && window.setActiveWirelessChannel('TX1')" title="Record ONLY TX 1 (Room 1 - Left Channel)">TX 1 (Room 1)</button>
+                  <button type="button" class="tx-badge" id="runner-btn-tx2" onclick="window.setActiveWirelessChannel && window.setActiveWirelessChannel('TX2')" title="Record ONLY TX 2 (Room 2 - Right Channel)">TX 2 (Room 2)</button>
+                </div>
+
+                <!-- Dual Live VU Meters for Visual Confirmation -->
+                <div class="dual-vu-container" style="display: inline-flex; align-items: center; gap: 8px; background: rgba(15, 23, 42, 0.5); padding: 3px 8px; border-radius: 8px; border: 1px solid rgba(148, 163, 184, 0.2);">
+                  <div style="display: flex; align-items: center; gap: 4px;" title="TX 1 (Room 1) Live Signal">
+                    <span style="font-size: 0.7rem; font-weight: 700; color: #38bdf8;">TX1:</span>
+                    <div style="width: 44px; height: 7px; background: #334155; border-radius: 4px; overflow: hidden;">
+                      <div id="vad-bar-fill-tx1" style="height: 100%; width: 0%; background: #38bdf8; transition: width 0.05s ease;"></div>
+                    </div>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 4px;" title="TX 2 (Room 2) Live Signal">
+                    <span style="font-size: 0.7rem; font-weight: 700; color: #c084fc;">TX2:</span>
+                    <div style="width: 44px; height: 7px; background: #334155; border-radius: 4px; overflow: hidden;">
+                      <div id="vad-bar-fill-tx2" style="height: 100%; width: 0%; background: #c084fc; transition: width 0.05s ease;"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="vad-meter-inline" id="vad-meter-inline" style="display: inline-flex; align-items: center; gap: 0.45rem;" title="Active Channel VAD Level">
+                  <span class="vad-label" style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted);">Active VAD:</span>
+                  <div class="vad-bar-track" style="width: 55px; height: 8px; background: #cbd5e1; border-radius: 9999px; overflow: hidden; display: inline-block;">
+                    <div class="vad-bar-fill" id="vad-bar-fill" style="height: 100%; width: 0%; background: #0b57d0; transition: width 0.08s ease;"></div>
+                  </div>
+                </div>
+                <div class="earcon-latency-readout" id="earcon-latency-readout" style="display: inline-flex; align-items: center; gap: 0.6rem; background: rgba(15, 23, 42, 0.85); color: #e2e8f0; padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.35); font-size: 0.75rem; font-family: monospace;" title="Acoustic Hotword Speech End → Smart Glasses Earcon Sound Latency">
+                  <span>🗣️ Speech: <strong id="val-prompt-to-audio" style="color: #94a3b8;">-- ms</strong></span>
+                  <span style="color: #475569;">|</span>
+                  <span>🔔 Hotword→Earcon: <strong id="val-audio-to-trigger" style="color: #38bdf8; font-size: 0.82rem;">-- ms</strong></span>
+                  <span style="color: #475569;">|</span>
+                  <span>⏱️ Total: <strong id="val-total-latency" style="color: #a78bfa;">-- ms</strong></span>
+                </div>
+                <div class="detection-result-pill hidden" id="detection-result-pill">
+                  <span class="detection-status-icon" id="detection-status-icon">⚡</span>
+                  <span class="detection-result-text" id="detection-result-text">Detected: HEY_GOOGLE</span>
+                  <span class="detection-latency-tag" id="detection-latency-tag">380ms</span>
+                </div>
+              </div>
+              <!-- Visual Hotword & Earcon Timeline Marker Bar for Recorded Trial -->
+              <div id="runner-acoustic-timeline" style="width: 100%; max-width: 580px; margin: 6px auto 0 auto; background: #0b1120; border: 1px solid #334155; border-radius: 8px; padding: 5px 10px; display: flex; flex-direction: column; gap: 4px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.68rem; font-family: monospace; color: #94a3b8;">
+                  <span id="runner-tl-status">🎙️ Trial Timeline: Waiting for trial start...</span>
+                  <span style="display: inline-flex; gap: 10px;">
+                    <span style="color: #38bdf8;">🟦 🗣️ Hotword</span>
+                    <span style="color: #fbbf24;">🟨 ⚡ Latency</span>
+                    <span style="color: #34d399;">🟩 🔔 Earcon</span>
+                  </span>
+                </div>
+                <div id="runner-tl-track" style="position: relative; width: 100%; height: 22px; background: #070b14; border: 1px solid #1e293b; border-radius: 5px; overflow: hidden;">
+                  <div id="runner-tl-hw" style="display: none; position: absolute; top: 0; bottom: 0; left: 0%; width: 0%; background: rgba(56, 189, 248, 0.25); border-left: 2px solid #38bdf8; border-right: 1.5px dashed #38bdf8;">
+                    <span id="runner-tl-hw-lbl" style="position: absolute; top: 2px; left: 4px; font-size: 0.6rem; font-family: monospace; font-weight: 700; color: #bae6fd; white-space: nowrap;">🗣️</span>
+                  </div>
+                  <div id="runner-tl-gap" style="display: none; position: absolute; top: 50%; left: 0%; width: 0%; height: 0; border-top: 1.5px dashed #fbbf24; justify-content: center; align-items: center;">
+                    <span id="runner-tl-gap-lbl" style="background: #0f172a; border: 1px solid #fbbf24; color: #fbbf24; font-size: 0.58rem; font-family: monospace; font-weight: 700; padding: 0 3px; border-radius: 3px;"></span>
+                  </div>
+                  <div id="runner-tl-earcon" style="display: none; position: absolute; top: 0; bottom: 0; left: 0%; width: 2.5px; background: #34d399; box-shadow: 0 0 8px #34d399;">
+                    <span id="runner-tl-earcon-lbl" style="position: absolute; bottom: 2px; left: 4px; font-size: 0.6rem; font-family: monospace; font-weight: 800; color: #6ee7b7; white-space: nowrap;">🔔</span>
+                  </div>
+                </div>
+              </div>
+          </div>
+
+          <!-- Controls Bar -->
+          <div class="runner-controls-bar">
+            <button class="btn btn-secondary" id="btn-back" title="Go to previous trial [B or Left Arrow]">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+              Back
+            </button>
+
+            <button class="btn btn-secondary" id="btn-retry" title="Retry current trial [R]">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+              Retry
+            </button>
+
+            <button class="btn btn-primary btn-lg" id="btn-start-trial" title="Start Trial & Noise [Space or Enter]">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              <span>Start Trial</span>
+            </button>
+
+            <div class="action-buttons-group hidden" id="action-buttons-group">
+              <button class="btn-eval btn-eval-no-answer" id="btn-gemini-activated-no-answer" title="Gemini Live Activated - No Answer [1]">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                <span>Gemini Live Activated - No Answer</span>
+              </button>
+
+              <button class="btn-eval btn-eval-success" id="btn-gemini-activated" title="Gemini Live Activated - Answered Query [2, Y, or Space]">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                <span>Gemini Live Activated - Answered Query</span>
+              </button>
+
+              <button class="btn-eval btn-eval-asleep" id="btn-stayed-asleep" title="Stayed Asleep (Hotword failed / ignored) [3, N, or Backspace]">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                <span>Stayed Asleep</span>
+              </button>
+            </div>
+
+            <button class="btn btn-secondary" id="btn-skip" title="Skip this trial [Right Arrow]">
+              Skip
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Live Telemetry Drawer (Under the Prompt Center Stage) -->
+        <div class="telemetry-drawer" id="telemetry-drawer">
+          <div class="drawer-header" id="drawer-toggle">
+            <div class="drawer-title">
+              <span class="pulse-dot"></span>
+              <strong>Live Telemetry Logcat Stream <span id="telemetry-phone-label" style="color: var(--color-primary); font-weight: 600;">(Phone 2: Searching...)</span></strong>
+              <span class="event-count-badge" id="event-count-badge">0 events</span>
+            </div>
+            <div class="drawer-actions">
+              <!-- Quick trigger simulation for testing -->
+              <div class="sim-tools" id="sim-tools">
+                <select id="sim-hotword-select" class="select-sm">
+                  <option value="HEY_GOOGLE">Trigger: Hey Google</option>
+                  <option value="OK_GOOGLE">Trigger: OK Google</option>
+                  <option value="HEY_GEMINI">Trigger: Hey Gemini</option>
+                  <option value="NONE">No Trigger (Timeout)</option>
+                </select>
+                <button class="btn btn-sm btn-outline" id="btn-sim-trigger">Inject Mock Event</button>
+              </div>
+              <button class="btn-icon" id="drawer-chevron">▲</button>
+            </div>
+          </div>
+          <div class="drawer-body" id="drawer-body">
+            <div class="log-terminal" id="log-terminal">
+              <div class="log-entry system">[SYSTEM] Telemetry Collector initialized. Waiting for logcat events...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Finalize & Save Session Bar -->
+        <div class="finalize-session-bar">
+          <div class="finalize-session-info">
+            <h4 class="finalize-session-title">Finalize & Save Session</h4>
+            <p class="finalize-session-desc">Completes the current evaluation session, saves per-trial + First 30 Trials + full-session batch audio, generates CSV/JSON/HTML reports on your Mac, and downloads CSV.</p>
+          </div>
+          <div style="display: flex; gap: 0.6rem; flex-wrap: wrap;">
+            <a class="btn btn-secondary btn-lg" id="btn-export-first30-audio-runner" href="/api/export/first30_audio" download style="text-decoration: none; align-items: center; background: rgba(16, 185, 129, 0.12); border-color: #10b981; color: #047857;">
+              🎯 First 30 Trials Audio
+            </a>
+            <a class="btn btn-secondary btn-lg" id="btn-export-batch-audio-runner" href="/api/export/batch_audio" download style="text-decoration: none; align-items: center; background: rgba(14, 165, 233, 0.12); border-color: #0284c7; color: #0369a1;">
+              🎙️ Batch Audio (Full Session)
+            </a>
+            <a class="btn btn-secondary btn-lg" id="btn-view-report-runner" href="/report" target="_blank" style="text-decoration: none; align-items: center;">
+              📊 View HTML Report
+            </a>
+            <button class="btn btn-primary btn-lg btn-finalize-blue" id="btn-finalize-session-runner">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+              Finalize & Download CSV
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 2: SETUP & DEVICES -->
+      <section class="view-section" id="view-setup">
+        <div class="setup-grid">
+          <!-- Session Data & Downloads -->
+          <div class="setup-card">
+            <h3 class="card-title">Session Data & Downloads</h3>
+            <p class="card-subtitle">Download raw aligned telemetry, individual trial clips, First 30 Trials recording, full-session batch recording, and graphical reports.</p>
+
+            <div class="form-group">
+              <label>Active Session Status</label>
+              <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <span class="badge" id="setup-session-id" style="padding: 0.4rem 0.8rem; background: var(--color-success-bg); color: var(--color-success); border: 1px solid #86efac; border-radius: 8px; font-size: 0.85rem; font-weight: 600;">Session: Ready</span>
+                <span class="badge" id="setup-trials-count" style="padding: 0.4rem 0.8rem; background: var(--color-success-bg); color: var(--color-success); border: 1px solid #86efac; border-radius: 8px; font-size: 0.85rem; font-weight: 600;">Completed: 0 Trials</span>
+              </div>
+            </div>
+
+            <div class="form-group" style="display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.5rem;">
+              <a class="btn btn-secondary" id="btn-view-report-setup" href="/report" target="_blank" style="justify-content: center; text-decoration: none;">
+                📊 View Interactive HTML Report
+              </a>
+              <button class="btn btn-secondary" id="btn-export-csv" style="justify-content: center;">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                Download Standard Trials CSV
+              </button>
+              <button class="btn btn-secondary" id="btn-export-benchmark-csv" style="justify-content: center; background: rgba(37, 99, 235, 0.1); border-color: #3b82f6; color: #60a5fa;">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                Download Benchmark Format CSV
+              </button>
+              <button class="btn btn-secondary" id="btn-export-benchmark-md" style="justify-content: center; background: rgba(16, 185, 129, 0.1); border-color: #10b981; color: #34d399;">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                Download Benchmark Report (.MD)
+              </button>
+              <button class="btn btn-secondary" id="btn-export-json" style="justify-content: center;">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                Download Full Session JSON
+              </button>
+              <a class="btn btn-secondary" id="btn-export-first30-audio" href="/api/export/first30_audio" download style="justify-content: center; text-decoration: none; background: rgba(16, 185, 129, 0.12); border-color: #10b981; color: #047857;">
+                🎯 Download First 30 Trials Recording (T001–T030 .webm)
+              </a>
+              <a class="btn btn-secondary" id="btn-export-batch-audio" href="/api/export/batch_audio" download style="justify-content: center; text-decoration: none; background: rgba(14, 165, 233, 0.12); border-color: #0284c7; color: #0369a1;">
+                🎙️ Download Batch Recording (Full Session .webm)
+              </a>
+              <a class="btn btn-secondary" id="btn-export-recordings-zip" href="/api/export/package_zip" download style="justify-content: center; text-decoration: none; background: rgba(139, 92, 246, 0.12); border-color: #8b5cf6; color: #a78bfa;">
+                📦 Download Complete Package (.ZIP — Trials + First 30 + Batch Audio + Reports)
+              </a>
+              <button class="btn btn-primary" id="btn-finalize-session" style="justify-content: center;">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
+                Finalize & Save Session
+              </button>
+            </div>
+            <small class="form-hint">Exports row-by-row prompt text, condition, target vs detected hotword, latencies, individual trial audio, and full-session batch recording.</small>
+          </div>
+
+          <!-- Acoustic & Microphone Setup (Deity W.Lav Micro) -->
+          <div class="setup-card" style="border: 2px solid var(--color-primary-light);">
+            <div style="margin-bottom: 1rem;">
+              <h3 class="card-title" style="font-size: 1.25rem; margin-bottom: 0.25rem;">🎤 Acoustic Capture & Microphone (Deity W.Lav)</h3>
+              <p class="card-subtitle" style="margin-bottom: 0.75rem;">Configure the glasses-mounted Deity W.Lav micro for per-trial synchronized audio recording.</p>
+            </div>
+
+            <div class="form-group" style="background: var(--bg-subtle); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                <label style="font-weight: 700; color: var(--text-main); font-size: 0.95rem;">Target Microphone Input</label>
+                <span class="badge" id="setup-audio-status-badge" style="background: rgba(148, 163, 184, 0.2); color: var(--text-muted);">Detecting...</span>
+              </div>
+              <div class="input-with-btn" style="margin-bottom: 0.4rem;">
+                <select id="select-audio-device-setup" class="form-select" style="flex: 1;">
+                  <option value="">Scanning microphones...</option>
+                </select>
+                <button class="btn btn-secondary" id="btn-refresh-audio-devices" title="Re-scan connected audio devices">
+                  🔄 Re-scan Mics
+                </button>
+              </div>
+              <small class="form-hint" style="color: var(--text-muted); font-size: 0.82rem;">
+                Select <strong>Wireless PRO RX</strong> (RØDE USB receiver connected to Mac, paired with TX1 transmitter + Deity W.Lav micro on glasses). The system locks onto Wireless PRO RX automatically.
+              </small>
+            </div>
+
+            <!-- Dual Wireless Transmitter (TX1 vs TX2) Routing & Isolation -->
+            <div class="form-group" style="background: rgba(15, 23, 42, 0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.85rem; margin-top: 1rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <label style="font-weight: 700; font-size: 0.9rem; color: var(--text-main); margin: 0;">Wireless Transmitter (TX) Isolation & Channel Routing</label>
+                <span class="badge" id="setup-tx-routing-badge" style="background: rgba(2, 132, 199, 0.15); color: #0284c7; font-weight: 700;">SPLIT ROUTING ACTIVE</span>
+              </div>
+              <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.65rem;">
+                When two testers are in different rooms, select which transmitter to record and monitor. The unselected transmitter is 100% muted to prevent cross-room audio bleeding.
+              </p>
+
+              <!-- Hardware Check Alert -->
+              <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; font-size: 0.8rem; color: #92400e; display: flex; align-items: flex-start; gap: 0.5rem;">
+                <span style="font-size: 1rem;">⚠️</span>
+                <div>
+                  <strong>RØDE Wireless PRO Hardware Check:</strong> On the RX receiver screen (or in RØDE Central app), ensure <strong>Routing is set to 'SPLIT'</strong> (not 'MERGED'). In Split mode, the RX screen will display two distinct level meters (1 & 2).
+                </div>
+              </div>
+
+              <!-- Channel Selector Radios -->
+              <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.85rem;">
+                <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; background: rgba(56, 189, 248, 0.08); padding: 0.4rem 0.75rem; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.25);">
+                  <input type="radio" name="wireless_tx_channel" id="radio-tx-1" value="TX1" checked onchange="window.setActiveWirelessChannel && window.setActiveWirelessChannel('TX1')">
+                  <span style="color: #0284c7;">● TX 1 (Room 1 - Left Ch)</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; background: rgba(168, 85, 247, 0.08); padding: 0.4rem 0.75rem; border-radius: 6px; border: 1px solid rgba(168, 85, 247, 0.25);">
+                  <input type="radio" name="wireless_tx_channel" id="radio-tx-2" value="TX2" onchange="window.setActiveWirelessChannel && window.setActiveWirelessChannel('TX2')">
+                  <span style="color: #9333ea;">● TX 2 (Room 2 - Right Ch)</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; background: rgba(148, 163, 184, 0.1); padding: 0.4rem 0.75rem; border-radius: 6px; border: 1px solid rgba(148, 163, 184, 0.25);">
+                  <input type="radio" name="wireless_tx_channel" id="radio-tx-both" value="BOTH" onchange="window.setActiveWirelessChannel && window.setActiveWirelessChannel('BOTH')">
+                  <span style="color: #475569;">Both (Stereo Mix)</span>
+                </label>
+              </div>
+
+              <!-- Dual Channel Live VU Meters in Setup -->
+              <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                  <span style="font-size: 0.82rem; font-weight: 700; color: #0284c7; width: 110px;">TX 1 (Room 1):</span>
+                  <div style="flex: 1; height: 10px; background: #e2e8f0; border-radius: 5px; overflow: hidden;">
+                    <div id="setup-vad-fill-tx1" style="height: 100%; width: 0%; background: #0284c7; transition: width 0.05s ease;"></div>
+                  </div>
+                  <span id="setup-vad-text-tx1" style="font-size: 0.8rem; font-family: monospace; color: var(--text-muted); width: 35px;">0%</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                  <span style="font-size: 0.82rem; font-weight: 700; color: #9333ea; width: 110px;">TX 2 (Room 2):</span>
+                  <div style="flex: 1; height: 10px; background: #e2e8f0; border-radius: 5px; overflow: hidden;">
+                    <div id="setup-vad-fill-tx2" style="height: 100%; width: 0%; background: #9333ea; transition: width 0.05s ease;"></div>
+                  </div>
+                  <span id="setup-vad-text-tx2" style="font-size: 0.8rem; font-family: monospace; color: var(--text-muted); width: 35px;">0%</span>
+                </div>
+              </div>
+              <small class="form-hint" style="margin-top: 0.4rem; display: block;">
+                Tap on TX1 or speak in Room 1 to watch TX 1 meter respond; tap on TX2 or speak in Room 2 to watch TX 2 meter respond.
+              </small>
+            </div>
+
+            <!-- Active VAD Level in Setup -->
+            <div class="form-group" style="margin-top: 1rem;">
+              <label style="font-weight: 600; font-size: 0.88rem; margin-bottom: 0.35rem; display: block;">Active VAD Threshold Level (Selected Channel)</label>
+              <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <div style="flex: 1; height: 12px; background: #e2e8f0; border-radius: 6px; overflow: hidden;">
+                  <div id="setup-vad-bar-fill" style="height: 100%; width: 0%; background: linear-gradient(90deg, #22c55e 70%, #eab308 85%, #ef4444 100%); transition: width 0.05s ease;"></div>
+                </div>
+                <span id="setup-vad-level-text" style="font-size: 0.82rem; font-family: monospace; color: var(--text-muted); width: 45px;">0%</span>
+              </div>
+            </div>
+
+            <!-- Quick 3-Second Mic Verification Test -->
+            <div class="form-group" style="margin-top: 1rem;">
+              <div style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;">
+                <button class="btn btn-primary" id="btn-quick-mic-test" style="flex: 1; justify-content: center; min-width: 220px;">
+                  🎙️ Test Mic (3-Sec Record & Playback)
+                </button>
+                <audio id="mic-test-playback" controls style="display: none; height: 38px; flex: 2; min-width: 200px;"></audio>
+              </div>
+              <small class="form-hint" id="mic-test-status" style="margin-top: 0.3rem;">Press to record a 3-second sample and hear immediate playback through your speakers to confirm mic placement.</small>
+            </div>
+          </div>
+
+          <!-- Device Manager -->
+          <div class="setup-card" style="border: 2px solid var(--color-primary-light);">
+            <div style="margin-bottom: 1.25rem;">
+              <h3 class="card-title" style="font-size: 1.25rem; margin-bottom: 0.25rem;">Dual-Phone Device Setup</h3>
+              <p class="card-subtitle" style="margin-bottom: 0.85rem;">Configure Device 1 (Soundbar Audio Node) & Device 2 (Evaluation Capture Node).</p>
+              <button class="btn btn-primary" id="btn-refresh-devices" style="width: 100%; justify-content: center; padding: 0.7rem 1.2rem; font-weight: 600;">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                🔄 Re-scan Attached Devices
+              </button>
+            </div>
+
+            <!-- Phone 1 Config -->
+            <div class="form-group" style="background: var(--bg-subtle); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                <label style="font-weight: 700; color: var(--text-main); font-size: 0.95rem;">📱 Phone 1: Soundbar / Noise Player Node</label>
+                <span class="badge" id="setup-p1-badge" style="background: rgba(148, 163, 184, 0.2); color: var(--text-muted);">Web Standby</span>
+              </div>
+              <div class="input-with-btn" style="margin-bottom: 0.4rem;">
+                <select id="select-phone1" class="form-select" style="flex: 1;">
+                  <option value="WEB_CLIENT">Web Bridge Mode (Open in Chrome on Phone 1)</option>
+                </select>
+                <button class="btn btn-secondary" id="btn-reverse-phone1" title="Forward port & launch /phone_speaker on Phone 1">
+                  Forward & Launch USB
+                </button>
+              </div>
+              <small class="form-hint" style="color: var(--text-muted); font-size: 0.82rem;">
+                <strong>Wireless Setup (Recommended):</strong> On Phone 1, open Chrome to <a href="/phone_speaker" target="_blank" style="color: var(--color-primary); font-weight: 600;">/phone_speaker</a>. It will stream ambient noise to the Soundbar automatically.
+              </small>
+            </div>
+
+            <!-- Phone 2 Config -->
+            <div class="form-group" style="background: var(--bg-subtle); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-top: 1rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                <label style="font-weight: 700; color: var(--text-main); font-size: 0.95rem;">📱 Phone 2: Evaluation Capture Device (DUT)</label>
+                <span class="badge" id="setup-p2-badge" style="background: rgba(148, 163, 184, 0.2); color: var(--text-muted);">Logcat Standby</span>
+              </div>
+              <div class="input-with-btn" style="margin-bottom: 0.4rem;">
+                <select id="select-phone2" class="form-select" style="flex: 1;">
+                  <option value="SIMULATED">Simulated / Voice Interaction Mode</option>
+                </select>
+                <button class="btn btn-secondary" id="btn-reverse-phone2" style="background-color: #0b57d0; color: white; border-color: #0b57d0;">
+                  Forward & Launch USB
+                </button>
+                <button class="btn btn-secondary" id="btn-connect-phone2">
+                  Attach Logcat
+                </button>
+              </div>
+              <small class="form-hint" style="color: var(--text-muted); font-size: 0.82rem;">
+                <strong>Prompt Screen:</strong> Open Chrome on Phone 2 to view the evaluator prompt screen. Hotwords will be captured via ADB logcat or voice interaction.
+              </small>
+            </div>
+
+            <div class="form-group" style="margin-top: 1rem;">
+              <label style="font-weight: 600;">Telemetry Source Mode</label>
+              <select id="select-source-mode" class="form-select">
+                <option value="simulated">Simulated / Voice Trigger Mode (No USB Logcat Required)</option>
+                <option value="adb">Live ADB Logcat Stream (Device Connected via USB)</option>
+                <option value="file">Tail Local Log File</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Suite & Session Config -->
+          <div class="setup-card">
+            <h3 class="card-title">Evaluation Suite & Session</h3>
+            <p class="card-subtitle">Select or upload your condition matrix spreadsheet.</p>
+
+            <div class="form-group">
+              <label for="select-ai-assistant">AI Assistant</label>
+              <select id="select-ai-assistant" class="form-select">
+                <option value="Gemini Live - Android" selected>Gemini Live - Android</option>
+                <option value="Gemini Live - iOS">Gemini Live - iOS</option>
+                <option value="Meta AI">Meta AI</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="select-conversation-mode">Conversation Mode</label>
+              <select id="select-conversation-mode" class="form-select">
+                <option value="Wearer" selected>Wearer</option>
+                <option value="Bystander">Bystander</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Evaluation Suite</label>
+              <select id="select-suite" class="form-select">
+                <option value="gemini_hotwords_suite.json" selected>Gemini Hotwords Suite (30 Hotword Recording + 90 Noise Environment = 120 Trials)</option>
+                <option value="gemini_hotwords_suite_noise90.json">Gemini Hotwords Suite - Noise Only (90 Trials)</option>
+                <option value="gemini_hotwords_suite_120.json">Gemini Hotword Robustness Suite with Distractors (120 Trials)</option>
+                <option value="meta_hotwords_suite.json">Meta AI Hotwords Suite (6 Conditions × 3 Phrases × 5 Repeats = 90 Trials)</option>
+                <option value="gemini_bystander_suite.json">Gemini Bystander Suite (12 Degrees × 3 Distances × 3 Phrases × 2 Vocal Levels = 216 Trials)</option>
+                <option value="meta_bystander_suite.json">Meta AI Bystander Suite (12 Degrees × 3 Distances × 2 Phrases × 2 Vocal Levels = 144 Trials)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Participant / Evaluator ID</label>
+              <input type="text" id="input-participant-id" class="form-input" value="P01">
+            </div>
+
+            <div class="form-group">
+              <label>Custom CSV / Spreadsheet Upload</label>
+              <input type="file" id="input-suite-file" class="form-file" accept=".csv,.json,.tsv">
+              <small class="form-hint">Upload any CSV with columns: <code>Condition</code>, <code>Hotword</code>, <code>Trials</code> or detailed trial rows.</small>
+            </div>
+
+            <div class="form-group" style="background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(14, 165, 233, 0.25); padding: 0.65rem 0.85rem; border-radius: 8px;">
+              <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 600; margin: 0;">
+                <input type="checkbox" id="check-enable-audio-recording" checked style="width: 16px; height: 16px; accent-color: var(--color-primary); cursor: pointer;">
+                🎙️ Enable Audio Recording (Per-Trial, First 30 &amp; Full Session)
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="check-randomize-suite">
+                Randomize / Shuffle Trial Sequence (Condition × Hotword)
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="checkbox" id="check-include-distractors">
+                Include Non-Hotwords (Distractors — 120 Trials Total)
+              </label>
+            </div>
+
+            <button class="btn btn-primary btn-lg" id="btn-start-session" onclick="if(window.beginEvaluation) window.beginEvaluation(event);">
+              Start Evaluation Session
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="tester.js?v=1791926250"></script>
+</body>
+</html>
