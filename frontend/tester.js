@@ -461,6 +461,11 @@ function updateAiAssistantUI(assistant, reloadSuite = true, conversationModeOver
     el.selectSuite.value = targetSuiteFile;
   }
 
+  // Auto-sync Audio Recording toggle with mode: ON for Wearer (First 30 Trials), OFF for Bystander
+  if (conversationModeOverride) {
+    setAudioRecordingEnabled(!isBystander, true);
+  }
+
   if (reloadSuite) {
     if (isBystander) {
       state.activeSuite = generateBystanderSuite(name);
@@ -918,8 +923,8 @@ function bindEvents() {
 
   // Analytics Exports
   el.btnExportCsv?.addEventListener('click', exportCSV);
-  el.btnExportBenchmarkCsv?.addEventListener('click', exportDetailedBenchmarkCSV);
-  el.btnExportBenchmarkMd?.addEventListener('click', exportMarkdownSummary);
+  el.btnExportStandardSummaryCsv?.addEventListener('click', exportStandardSummaryCSV);
+  el.btnExportStandardSummaryMd?.addEventListener('click', exportStandardSummaryMarkdown);
   el.btnExportJson?.addEventListener('click', exportJSON);
   el.btnFinalizeSession?.addEventListener('click', finalizeSession);
   el.btnFinalizeSessionRunner?.addEventListener('click', finalizeSession);
@@ -1216,6 +1221,8 @@ async function loadSuiteConfig(filename, forceRandomize = false) {
 async function startNewSession() {
   state.wearerIntroDone = false;
   state.wearerStopRecordingDone = false;
+  state.first30AlreadyExported = false;
+  state.first30MemoryChunks = [];
   state.participantId = el.inputParticipantId?.value || el.modalParticipantId?.value || 'P01';
   if (el.participantBadgeVal) el.participantBadgeVal.textContent = state.participantId;
   const suiteFile = el.selectSuite?.value || el.modalSelectSuite?.value || getTargetSuiteFilename(state.aiAssistant, state.conversationMode);
@@ -1256,13 +1263,18 @@ async function startNewSession() {
     console.error('Failed to start session API:', err);
   }
 
-  // Start continuous Full-Session ("Batch") Audio Recording AND First-30-Trials Audio Recording from session start (only if audio recording is enabled)
-  if (state.enableAudioRecording) {
+  // In Wearer mode, arm USB RX Microphone for automatic First-30-Trials recording (starts when 'Ready to Start' is clicked)
+  if (state.enableAudioRecording && state.conversationMode === 'Wearer') {
     try {
-      startBatchSessionRecording(true);
-      startFirst30SessionRecording(true);
-    } catch (batchErr) {
-      console.warn('[BATCH REC] Could not start on session init:', batchErr);
+      fetch('/api/audio/set_device', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_name: 'Wireless PRO RX' })
+      }).catch(() => {});
+      await initAudioVAD();
+      updateAudioRecIndicator('ready', 'USB RX Armed (Trials 1–30)');
+    } catch (recErr) {
+      console.warn('[FIRST30 REC] Could not arm USB RX mic on session init:', recErr);
     }
   } else {
     updateAudioRecIndicator('disabled');
@@ -1312,8 +1324,8 @@ function setupTrialPromptAndNoise(trial) {
   const nl = trial.noise_level;
 
   if (cond.includes('multi-talker babble') || cond.includes('traffic') || cond.includes('babble') || cond.includes('industrial')) {
-    trial.prompt_html = `Background noise active. Now say: <span style="color: #0284c7; font-weight: bold;">"${phrase}"</span><br>in a <span style="color: #0284c7; font-weight: bold;">${nl}</span> tone and select result below.`;
-    trial.prompt_text = `Background noise active. Now say: "${phrase}" in a ${nl} tone and select result below.`;
+    trial.prompt_html = `Wait for the audio to begin then say <span style="color: #0284c7; font-weight: bold;">"${phrase}"</span><br>in a <span style="color: #0284c7; font-weight: bold;">${nl}</span> tone and select result below.`;
+    trial.prompt_text = `Wait for the audio to begin then say "${phrase}" in a ${nl} tone and select result below.`;
   } else if (cond.includes('silent')) {
     if (nl) {
       trial.prompt_html = `Say <span style="color: #0284c7; font-weight: bold;">"${phrase}"</span> in a <span style="color: #0284c7; font-weight: bold;">${nl}</span> tone and select result below.`;
@@ -1509,25 +1521,25 @@ function setTrialState(newState, extraInfo = '') {
   if (newState === 'pre_trial') {
     el.btnStartTrial?.classList.remove('hidden');
     el.actionButtonsGroup?.classList.add('hidden');
-    el.stateIcon.textContent = '⏸';
+    el.stateIcon.textContent = '🎙️';
     const span = el.btnStartTrial?.querySelector('span');
-    if (span) span.textContent = 'Ready to Start';
+    if (span) span.textContent = 'Ready to Start (Auto-Record Trials 1–30)';
     if (el.promptDisplayText) {
-      el.promptDisplayText.innerHTML = `Before you begin, <span style="color: #dc2626; font-weight: 700;">please start recording your session</span> (Automatic per-trial, First-30-Trials &amp; full-batch 48kHz recording is also active). Begin recording, then click &lsquo;Ready to Start&rsquo; to begin the 30 silent recording trials.`;
+      el.promptDisplayText.innerHTML = `<span style="color: #059669; font-weight: 700;">🎙️ USB RX Microphone Armed (Auto-Recording for First 30 Trials Only)</span><br><br>No need to open QuickTime Player! Click <strong>&lsquo;Ready to Start&rsquo;</strong> below — voice recording on the USB <strong>RX (Wireless PRO RX)</strong> microphone will <strong>start automatically</strong> for the 30 silent trials (T001–T030) and <strong>stop &amp; save automatically</strong> right after Trial 30.`;
     }
-    el.stateText.textContent = "Start recording, then press 'Ready to Start'";
+    el.stateText.textContent = "Click 'Ready to Start' to auto-start USB RX voice recording & begin Trial 1";
   } else if (newState === 'stop_recording') {
-    // Automatically finalize the dedicated First-30-Trials recording right as Trial 30 finishes!
-    stopAndFinalizeFirst30Recording();
+    // Automatically stop, save & download the dedicated First-30-Trials recording right as Trial 30 finishes!
+    stopAndFinalizeFirst30Recording(true);
     el.btnStartTrial?.classList.remove('hidden');
     el.actionButtonsGroup?.classList.add('hidden');
-    el.stateIcon.textContent = '⏹';
+    el.stateIcon.textContent = '✅';
     const span = el.btnStartTrial?.querySelector('span');
-    if (span) span.textContent = 'Continue to Noise Trials →';
+    if (span) span.textContent = 'Continue to Noise Trials (31–120) →';
     if (el.promptDisplayText) {
-      el.promptDisplayText.innerHTML = `<span style="color: #dc2626; font-weight: 700;">STOP RECORDING.</span><br><br>Stop your external recording now (<strong style="color:#059669;">✅ First 30 Trials audio file saved!</strong> Per-trial &amp; full-session batch recording will continue automatically). When ready, continue to begin the 90 noise environment trials.`;
+      el.promptDisplayText.innerHTML = `<span style="color: #059669; font-weight: 700;">✅ FIRST 30 TRIALS VOICE RECORDING AUTOMATICALLY STOPPED &amp; SAVED!</span><br><br>Your 30-trial USB RX voice recording (<strong style="color:#0284c7;">${state.participantId || 'P01'}_First30_Trials_RX.wav</strong>) has been automatically stopped and saved! Voice recording is now <strong>OFF</strong> for the remaining 90 noise environment trials.<br><br>When ready, click <strong>&lsquo;Continue to Noise Trials &rarr;&rsquo;</strong> to begin Trials 31–120.`;
     }
-    el.stateText.textContent = "Stop recording, then press 'Continue to Noise Trials →'";
+    el.stateText.textContent = "First 30 trials audio saved & mic stopped — press 'Continue to Noise Trials →'";
   } else if (newState === 'idle') {
     el.btnStartTrial?.classList.remove('hidden');
     el.actionButtonsGroup?.classList.add('hidden');
@@ -1535,17 +1547,12 @@ function setTrialState(newState, extraInfo = '') {
     const span = el.btnStartTrial?.querySelector('span');
     if (span) span.textContent = 'Start Trial';
     const trial = getCurrentTrial();
-    const cond = (trial?.condition || '').toLowerCase();
-    let noiseNotice = '';
-    if (cond.includes('babble') || cond.includes('traffic') || cond.includes('industrial')) {
-      noiseNotice = `<span style="font-size: 1.05rem; font-weight: 600; color: #d97706; display: block; margin-top: 0.35rem;">🔊 Background noise will begin once you click Start Trial.</span>`;
-    }
     if (el.promptDisplayText) {
       const posLine = trial?.is_bystander_suite
         ? `<span style="font-size: 1.25rem; font-weight: 700; color: #0284c7; display: block; margin-top: 0.4rem;">Position: ${trial.distance} at ${trial.degree}</span>`
         : '';
       if (state.trialIndex === 0) {
-        el.promptDisplayText.innerHTML = `Get Ready.${posLine}${noiseNotice}<span style="font-size: 1.2rem; font-weight: 500; color: #0f172a; display: block; margin-top: 0.4rem;">Read the instructions on the next page before you begin.</span>`;
+        el.promptDisplayText.innerHTML = `Get Ready.${posLine}<span style="font-size: 1.2rem; font-weight: 500; color: #0f172a; display: block; margin-top: 0.4rem;">Read the instructions on the next page before you begin.</span>`;
       } else {
         const asstName = (state.aiAssistant === 'Meta AI') ? 'Meta AI' : 'Gemini';
         const prevTrialObj = state.activeSuite?.trials?.[state.trialIndex - 1];
@@ -1559,7 +1566,7 @@ function setTrialState(newState, extraInfo = '') {
         } else if (isStartOfNewBlock && wasMusicCondition) {
           hangupText = `Pause the video and hang up on ${asstName}.`;
         }
-        el.promptDisplayText.innerHTML = `<span style="color: #dc2626; font-weight: 700;">${hangupText}</span> Get Ready.${posLine}${noiseNotice}<span style="font-size: 1.2rem; font-weight: 500; color: #0f172a; display: block; margin-top: 0.4rem;">Read the instructions on the next page before you begin.</span>`;
+        el.promptDisplayText.innerHTML = `<span style="color: #dc2626; font-weight: 700;">${hangupText}</span> Get Ready.${posLine}<span style="font-size: 1.2rem; font-weight: 500; color: #0f172a; display: block; margin-top: 0.4rem;">Read the instructions on the next page before you begin.</span>`;
       }
     }
     el.stateText.textContent = "Press Start Trial to begin";
@@ -1596,6 +1603,9 @@ function setTrialState(newState, extraInfo = '') {
 function onStartNextClick() {
   if (state.trialState === 'pre_trial') {
     state.wearerIntroDone = true;
+    if (state.enableAudioRecording && state.conversationMode === 'Wearer') {
+      startFirst30SessionRecording(true);
+    }
     loadCurrentTrial();
   } else if (state.trialState === 'stop_recording') {
     state.wearerStopRecordingDone = true;
@@ -1711,18 +1721,11 @@ function beginListeningWindow(trial) {
   state.tPromptStart = Date.now();
   setTrialState('listening');
 
-  if (state.enableAudioRecording) {
-    // Ensure continuous Full-Session Batch Recording is running from session start until all trials finish
-    if (!state.isRecordingBatchAudio || !state.batchMediaRecorder || state.batchMediaRecorder.state === 'inactive') {
-      startBatchSessionRecording(state.batchChunkSeq === 0);
-    }
-
-    // Ensure First-30-Trials Audio Recording is running while trialIndex < 30
-    if (state.trialIndex < 30 && (!state.isRecordingFirst30Audio || !state.first30MediaRecorder || state.first30MediaRecorder.state === 'inactive')) {
+  // Voice recording is strictly active ONLY in Wearer mode for the First 30 Trials (T001–T030)
+  if (state.enableAudioRecording && state.conversationMode === 'Wearer' && state.trialIndex < 30 && !trial?.is_bystander_suite) {
+    if (!state.isRecordingFirst30Audio || !state.first30MediaRecorder || state.first30MediaRecorder.state === 'inactive') {
       startFirst30SessionRecording(state.first30ChunkSeq === 0);
     }
-
-    // Start synchronized trial audio recording
     startTrialAudioRecording();
   }
 }
@@ -2242,11 +2245,8 @@ async function setAudioRecordingEnabled(enabled, fromModal = false) {
     updateAudioRecIndicator('standby', 'Connecting...');
     if (!fromModal) {
       await initAudioVAD();
-      if (state.sessionStarted || state.activeSession) {
-        startBatchSessionRecording(state.batchChunkSeq === 0);
-        if (state.trialIndex < 30) {
-          startFirst30SessionRecording(state.first30ChunkSeq === 0);
-        }
+      if ((state.sessionStarted || state.activeSession) && state.conversationMode === 'Wearer' && state.trialIndex < 30 && state.wearerIntroDone) {
+        startFirst30SessionRecording(state.first30ChunkSeq === 0);
       }
     }
   }
@@ -2372,12 +2372,70 @@ async function stopAndFinalizeBatchRecording() {
   updateAudioRecIndicator(state.micStream ? 'ready' : 'standby');
 }
 
+function encodeAudioBufferToWavBlob(audioBuffer) {
+  const numChannels = Math.min(2, audioBuffer.numberOfChannels || 1);
+  const sampleRate = audioBuffer.sampleRate || 48000;
+  const numFrames = audioBuffer.length;
+  const bytesPerSample = 2;
+  const blockAlign = numChannels * bytesPerSample;
+  const dataSize = numFrames * blockAlign;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  const writeStr = (offset, str) => {
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i));
+    }
+  };
+
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  const channels = [];
+  for (let c = 0; c < numChannels; c++) {
+    channels.push(audioBuffer.getChannelData(c));
+  }
+
+  let offset = 44;
+  for (let i = 0; i < numFrames; i++) {
+    for (let c = 0; c < numChannels; c++) {
+      let s = Math.max(-1, Math.min(1, channels[c][i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      offset += 2;
+    }
+  }
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
 async function startFirst30SessionRecording(forceRestart = false) {
-  if (!state.enableAudioRecording) return;
+  if (!state.enableAudioRecording || state.conversationMode !== 'Wearer' || state.trialIndex >= 30) return;
   if (!state.micStream) {
     await initAudioVAD();
     if (!state.micStream) return;
   }
+
+  // Ensure we are locked onto USB Wireless PRO RX if connected
+  try {
+    const currentTrack = state.micStream.getAudioTracks()[0];
+    const trackLabel = currentTrack ? (currentTrack.label || '') : '';
+    if (/built-in|macbook|internal/i.test(trackLabel)) {
+      const best = getBestAudioDevice(state.audioDevices);
+      if (best && getAudioDeviceScore(best) >= 50 && best.deviceId !== currentTrack.getSettings()?.deviceId) {
+        await initAudioVAD(best.deviceId);
+      }
+    }
+  } catch (e) {}
 
   if (state.first30MediaRecorder && state.first30MediaRecorder.state === 'recording' && !forceRestart) {
     return;
@@ -2395,11 +2453,14 @@ async function startFirst30SessionRecording(forceRestart = false) {
       state.first30ChunkSeq = 0;
       state.first30RecordingStartMs = Date.now();
       state.pendingFirst30ChunkUploads = [];
+      state.first30MemoryChunks = [];
+      state.first30AlreadyExported = false;
     }
 
     const mimeType = (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/webm;codecs=opus'))
       ? 'audio/webm;codecs=opus'
       : ((typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/webm')) ? 'audio/webm' : '');
+    state.first30MimeType = mimeType || 'audio/webm';
     const options = mimeType ? { mimeType } : {};
     const streamToRecord = state.activeRecordingStream || state.micStream;
 
@@ -2407,6 +2468,8 @@ async function startFirst30SessionRecording(forceRestart = false) {
     state.first30MediaRecorder.ondataavailable = (e) => {
       if (!e.data || e.data.size === 0) return;
       const chunkBlob = e.data;
+      if (!state.first30MemoryChunks) state.first30MemoryChunks = [];
+      state.first30MemoryChunks.push(chunkBlob);
       const seqNum = state.first30ChunkSeq++;
       const first30Start = state.first30RecordingStartMs || Date.now();
 
@@ -2451,15 +2514,17 @@ async function startFirst30SessionRecording(forceRestart = false) {
       });
     };
 
-    state.first30MediaRecorder.start(4000);
+    state.first30MediaRecorder.start(2000);
     state.isRecordingFirst30Audio = true;
-    logEntry(`[FIRST-30 REC] 🎯 Dedicated First-30-Trials Audio Recording started (T001–T030 stream)`, 'system');
+    updateAudioRecIndicator('recording', 'REC: First 30 Trials (USB RX)');
+    logEntry(`[FIRST-30 REC] 🔴 Automatic First-30-Trials USB RX Voice Recording started (T001–T030 only)`, 'system');
   } catch (err) {
     console.warn('[FIRST30 REC] Failed to start First-30 MediaRecorder:', err);
   }
 }
 
-async function stopAndFinalizeFirst30Recording() {
+async function stopAndFinalizeFirst30Recording(autoDownload = true) {
+  abortTrialAudioRecording();
   if (state.first30MediaRecorder && state.first30MediaRecorder.state !== 'inactive') {
     const rec = state.first30MediaRecorder;
     state.first30MediaRecorder = null;
@@ -2472,7 +2537,7 @@ async function stopAndFinalizeFirst30Recording() {
         resolve();
       }
     });
-    logEntry(`[FIRST-30 REC] ✅ Dedicated First-30-Trials Audio Recording saved & finalized`, 'system');
+    logEntry(`[FIRST-30 REC] ✅ Automatic First-30-Trials USB RX Voice Recording stopped after Trial 30`, 'system');
   } else {
     state.isRecordingFirst30Audio = false;
   }
@@ -2481,6 +2546,77 @@ async function stopAndFinalizeFirst30Recording() {
     try {
       await Promise.allSettled([...state.pendingFirst30ChunkUploads]);
     } catch (e) {}
+  }
+
+  // Export and auto-download clean WAV recording of First 30 Trials right as Trial 30 completes
+  if (state.first30MemoryChunks && state.first30MemoryChunks.length > 0 && !state.first30AlreadyExported) {
+    state.first30AlreadyExported = true;
+    try {
+      const rawBlob = new Blob(state.first30MemoryChunks, { type: state.first30MimeType || 'audio/webm' });
+      const participant = (state.participantId || 'P01').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const asst = (state.aiAssistant || 'Gemini').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_|_$/g, '');
+      let exportBlob = rawBlob;
+      let ext = 'webm';
+      try {
+        const arrayBuf = await rawBlob.arrayBuffer();
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (Ctx) {
+          const decodeCtx = (state.audioContext && state.audioContext.state !== 'closed') ? state.audioContext : new Ctx();
+          const decoded = await decodeCtx.decodeAudioData(arrayBuf.slice(0));
+          if (decoded && decoded.length > 0) {
+            exportBlob = encodeAudioBufferToWavBlob(decoded);
+            ext = 'wav';
+          }
+        }
+      } catch (wavErr) {
+        console.warn('[FIRST30 REC] WAV conversion fallback to WebM:', wavErr);
+      }
+
+      if (autoDownload) {
+        const dlName = `${participant}_${asst}_First30_Trials_RX.${ext}`;
+        const url = URL.createObjectURL(exportBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = dlName;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 1500);
+        logEntry(`[FIRST-30 REC] 💾 Auto-downloaded First 30 Trials audio: ${dlName}`, 'system');
+      }
+
+      // Also notify backend to convert & save .wav + .m4a (QuickTime format) in data/
+      fetch('/api/session/finalize_first30', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: (state.activeSession && state.activeSession.session_id) || 'session_current',
+          participant_id: state.participantId || 'P01',
+          ai_assistant: state.aiAssistant || 'Gemini Live - Android'
+        })
+      }).catch(() => {});
+    } catch (expErr) {
+      console.warn('[FIRST30 REC] Export error:', expErr);
+    }
+  }
+
+  // Shut off microphone capture completely after Trial 30 so Trials 31–120 have ZERO recording
+  if (state.trialIndex >= 30) {
+    if (speechRecognizer) {
+      try { speechRecognizer.stop(); } catch (e) {}
+    }
+    if (state.micStream) {
+      try { state.micStream.getTracks().forEach(t => t.stop()); } catch (e) {}
+      state.micStream = null;
+    }
+    if (state.audioContext && state.audioContext.state !== 'closed') {
+      try { state.audioContext.close(); } catch (e) {}
+      state.audioContext = null;
+    }
+    updateAudioRecIndicator('ready', '✅ First 30 Saved (Mic OFF for 31–120)');
+    logEntry(`[FIRST-30 REC] 🔇 Microphone turned OFF for remaining Noise Trials (T031–T120).`, 'system');
   }
 }
 
@@ -2555,7 +2691,7 @@ async function analyzeRecordedTrialWaveform(audioBlob) {
     const nFrames = Math.floor(chData.length / win);
     if (nFrames < 25) return null;
 
-    // Precompute Goertzel / DFT basis vectors for the memorized XR Glasses Hotword Wake-Up Earcon:
+    // Precompute Goertzel / DFT basis vectors for the memorized Android XR Hotword Wake-Up Earcon:
     //   Note 1 (Attack, 0..90ms):  247 Hz (B3)
     //   Note 2 (Sustain, 70..280ms): 392 Hz (G4)
     //   Out-of-band speech/babble rejection frequencies: 650 Hz, 850 Hz, 1200 Hz
@@ -2616,10 +2752,10 @@ async function analyzeRecordedTrialWaveform(audioBlob) {
     const peakRms = sortedRms[sortedRms.length - 1] || 0;
     if (peakRms < 120 || peakRms < noiseFloor * 1.8) return null;
 
-    // 1. Scan for the Memorized XR Glasses Hotword Wake-Up Earcon Signature (247 Hz B3 -> 392 Hz G4)
-    let xr_glassesEarconIdx = null;
-    let bestXR GlassesScore = 0;
-    const xr_glassesCandidates = [];
+    // 1. Scan for the Memorized Android XR Hotword Wake-Up Earcon Signature (247 Hz B3 -> 392 Hz G4)
+    let Android XREarconIdx = null;
+    let bestAndroid XRScore = 0;
+    const Android XRCandidates = [];
     for (let i = 80; i < nFrames - 28; i++) {
       let p247 = 0, a247 = 0;
       for (let k = i; k < i + 9; k++) {
@@ -2656,17 +2792,17 @@ async function analyzeRecordedTrialWaveform(audioBlob) {
         tonePurity >= 0.42
       ) {
         const score = (a247 * 0.9 + a392 * 1.6) * tonePurity - aMid2 * 0.8;
-        xr_glassesCandidates.push([i, score]);
+        Android XRCandidates.push([i, score]);
       }
     }
 
-    if (xr_glassesCandidates.length > 0) {
-      for (const [, sc] of xr_glassesCandidates) {
-        if (sc > bestXR GlassesScore) bestXR GlassesScore = sc;
+    if (Android XRCandidates.length > 0) {
+      for (const [, sc] of Android XRCandidates) {
+        if (sc > bestAndroid XRScore) bestAndroid XRScore = sc;
       }
       let firstStrongIdx = null;
-      for (const [idx, sc] of xr_glassesCandidates) {
-        if (sc >= bestXR GlassesScore * 0.60) {
+      for (const [idx, sc] of Android XRCandidates) {
+        if (sc >= bestAndroid XRScore * 0.60) {
           firstStrongIdx = idx;
           break;
         }
@@ -2679,7 +2815,7 @@ async function analyzeRecordedTrialWaveform(audioBlob) {
         ) {
           firstStrongIdx--;
         }
-        xr_glassesEarconIdx = firstStrongIdx;
+        Android XREarconIdx = firstStrongIdx;
       }
     }
 
@@ -2724,15 +2860,15 @@ async function analyzeRecordedTrialWaveform(audioBlob) {
     let speechOnsetMs = null;
     let speechEndMs = null;
 
-    if (xr_glassesEarconIdx !== null) {
-      // Matched the exact XR Glasses Hotword Wake-Up Earcon (247Hz B3 -> 392Hz G4)!
-      earconOnsetMs = xr_glassesEarconIdx * 10;
+    if (Android XREarconIdx !== null) {
+      // Matched the exact Android XR Hotword Wake-Up Earcon (247Hz B3 -> 392Hz G4)!
+      earconOnsetMs = Android XREarconIdx * 10;
       earconEndMs = Math.min(nFrames * 10, earconOnsetMs + 380);
 
       const preBursts = [];
       for (const [b0, b1] of candidates) {
-        if (b0 < xr_glassesEarconIdx - 12) {
-          const b1Clamped = Math.min(b1, xr_glassesEarconIdx - 15);
+        if (b0 < Android XREarconIdx - 12) {
+          const b1Clamped = Math.min(b1, Android XREarconIdx - 15);
           if ((b1Clamped - b0) >= 4) preBursts.push([b0, b1Clamped]);
         }
       }
@@ -2761,9 +2897,9 @@ async function analyzeRecordedTrialWaveform(audioBlob) {
         speechOnsetMs = hwStart * 10;
         speechEndMs = hwEnd * 10;
       } else {
-        const searchEnd = Math.max(25, xr_glassesEarconIdx - 25);
-        const searchStart = Math.max(15, xr_glassesEarconIdx - 180);
-        let peakIdx = Math.max(20, xr_glassesEarconIdx - 95);
+        const searchEnd = Math.max(25, Android XREarconIdx - 25);
+        const searchStart = Math.max(15, Android XREarconIdx - 180);
+        let peakIdx = Math.max(20, Android XREarconIdx - 95);
         let maxR = -1;
         for (let k = searchStart; k < searchEnd; k++) {
           if (rms[k] > maxR) {
@@ -2772,12 +2908,12 @@ async function analyzeRecordedTrialWaveform(audioBlob) {
           }
         }
         const hwStart = Math.max(15, peakIdx - 35);
-        const hwEnd = Math.min(xr_glassesEarconIdx - 20, peakIdx + 40);
+        const hwEnd = Math.min(Android XREarconIdx - 20, peakIdx + 40);
         speechOnsetMs = hwStart * 10;
         speechEndMs = hwEnd * 10;
       }
     } else {
-      // Fallback for non-XR Glasses devices (e.g. Meta AI chime)
+      // Fallback for non-Android XR devices (e.g. Meta AI chime)
       if (candidates.length < 2) return null;
       const hwStart = candidates[0][0];
       let hwEnd = candidates[0][1];
@@ -2818,7 +2954,7 @@ async function analyzeRecordedTrialWaveform(audioBlob) {
       earcon_latency_ms: earconLatencyMs,
       onset_to_earcon_ms: onsetToEarconMs,
       audio_duration_sec: audioDurationSec,
-      xr_glasses_chime_matched: xr_glassesEarconIdx !== null
+      Android XR_chime_matched: Android XREarconIdx !== null
     };
   } catch (err) {
     console.warn('[WAVEFORM EARCON] Audio buffer analysis warning:', err);
@@ -2860,7 +2996,7 @@ function stopAndUploadTrialAudio(trial, record) {
               return;
             }
 
-            // Perform sample-accurate 48kHz waveform analysis to extract exact Hotword Speech End -> XR Glasses Glasses Earcon Onset latency
+            // Perform sample-accurate 48kHz waveform analysis to extract exact Hotword Speech End -> Android XR Glasses Earcon Onset latency
             const isActivated = record.detected_hotword && record.detected_hotword !== 'UNDETECTED' && record.detected_hotword !== 'SKIPPED';
             if (isActivated) {
               const wf = await analyzeRecordedTrialWaveform(audioBlob);
@@ -2882,7 +3018,7 @@ function stopAndUploadTrialAudio(trial, record) {
                 if (el.detectionLatencyTag) el.detectionLatencyTag.textContent = `Earcon: ${wf.earcon_latency_ms}ms`;
                 updateRunnerVisualTimeline(wf.speech_onset_ms, wf.speech_end_ms, wf.earcon_onset_ms, wf.earcon_latency_ms);
 
-                logEntry(`[EARCON WAVEFORM] 🔔 ${record.trial_id}: Hotword=${wf.speech_onset_ms}..${wf.speech_end_ms}ms | XR Glasses Earcon=${wf.earcon_onset_ms}ms | Hotword→Earcon Latency = ${wf.earcon_latency_ms}ms`, 'trigger');
+                logEntry(`[EARCON WAVEFORM] 🔔 ${record.trial_id}: Hotword=${wf.speech_onset_ms}..${wf.speech_end_ms}ms | Android XR Earcon=${wf.earcon_onset_ms}ms | Hotword→Earcon Latency = ${wf.earcon_latency_ms}ms`, 'trigger');
               }
             }
 
@@ -2912,7 +3048,7 @@ function stopAndUploadTrialAudio(trial, record) {
               if (res && res.status === 'saved') {
                 record.audio_file = res.audio_file;
                 if (res.audio_duration_sec) record.audio_duration_sec = res.audio_duration_sec;
-                // Always trust server-side XR Glasses 247Hz->392Hz earcon spectral template if detected
+                // Always trust server-side Android XR 247Hz->392Hz earcon spectral template if detected
                 if (isActivated && res.earcon_latency_ms !== undefined && res.earcon_latency_ms !== null) {
                   record.audio_to_trigger_delta_ms = res.earcon_latency_ms;
                   record.earcon_latency_ms = res.earcon_latency_ms;
@@ -3339,9 +3475,9 @@ async function initAudioVAD(requestedDeviceId) {
     // Setup channel routing (isolatedAudioDest, gain nodes)
     setupChannelRouting();
 
-    // If a session is active, ensure continuous Full-Session Batch Audio Recording is running on the active stream
-    if (state.sessionStarted || state.activeSession) {
-      startBatchSessionRecording(state.trialRecords.length === 0);
+    // If a Wearer session is active in Trials 1–30 after Ready to Start, keep First-30 recording synced to the stream
+    if ((state.sessionStarted || state.activeSession) && state.conversationMode === 'Wearer' && state.trialIndex < 30 && state.wearerIntroDone) {
+      startFirst30SessionRecording(state.first30ChunkSeq === 0);
     }
 
     const dataArray1 = new Uint8Array(state.analyserTX1.frequencyBinCount);
@@ -4075,7 +4211,7 @@ function exportJSON() {
   downloadFile(JSON.stringify(data, null, 2), `gemini_hotwords_${state.participantId}_${Date.now()}.json`, 'application/json');
 }
 
-function exportDetailedBenchmarkCSV() {
+function exportStandardSummaryCSV() {
   try {
     if (state.trialRecords.length === 0) {
       alert('No data to download, start trials to begin collecting data');
@@ -4115,14 +4251,14 @@ function exportDetailedBenchmarkCSV() {
     });
 
     const assistantTag = (state.aiAssistant || 'Gemini_Live_Android').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-    downloadFile(csvContent, `${assistantTag}_hotwords_${state.participantId}_${Date.now()}_benchmark.csv`, 'text/csv');
+    downloadFile(csvContent, `${assistantTag}_hotwords_${state.participantId}_${Date.now()}_StandardSummary.csv`, 'text/csv');
   } catch (e) {
-    alert("Error generating Detailed Benchmark CSV: " + e.message);
+    alert("Error generating StandardSummary CSV: " + e.message);
     console.error(e);
   }
 }
 
-function exportMarkdownSummary() {
+function exportStandardSummaryMarkdown() {
   try {
     if (state.trialRecords.length === 0) {
       alert('No data to download, start trials to begin collecting data');
@@ -4158,7 +4294,7 @@ function exportMarkdownSummary() {
 
     downloadFile(md, `gemini_hotwords_${participant}_${Date.now()}_report.md`, 'text/markdown');
   } catch (e) {
-    alert("Error generating Markdown Summary report: " + e.message);
+    alert("Error generating StandardSummary Markdown report: " + e.message);
     console.error(e);
   }
 }
@@ -4184,9 +4320,9 @@ async function finalizeSession() {
     console.warn('Batch/First30 audio finalize warning:', e);
   }
 
-  // 1. Auto-download both Standard CSV and Detailed Benchmark CSV
+  // 1. Auto-download both Standard CSV and StandardSummary CSV
   exportCSV();
-  exportDetailedBenchmarkCSV();
+  exportStandardSummaryCSV();
 
   // 2. Notify backend to generate session JSON, CSV, and standalone executive HTML report
   fetch('/api/session/finalize', {

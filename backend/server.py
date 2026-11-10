@@ -521,7 +521,7 @@ class TelemetryHTTPHandler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/sessions":
             sessions = []
             for f in sorted(os.listdir(DATA_DIR), reverse=True):
-                if f.endswith(".json") and not f.endswith("_benchmark.json"):
+                if f.endswith(".json") and not f.endswith("_StandardSummary.json"):
                     try:
                         with open(os.path.join(DATA_DIR, f), "r") as sf:
                             sd = json.load(sf)
@@ -577,10 +577,10 @@ class TelemetryHTTPHandler(http.server.BaseHTTPRequestHandler):
                         if r_file.endswith((".webm", ".wav")):
                             zf.write(os.path.join(rec_dir, r_file), arcname=f"recordings/{r_file}")
 
-                # 2. Add session report & data files (both standard, Benchmark formats, and top-level audio files)
+                # 2. Add session report & data files (both standard, StandardSummary formats, and top-level audio files)
                 for suffix in [
                     ".csv", ".json", "_report.html",
-                    "_benchmark.csv", "_benchmark.json", "_benchmark_report.md",
+                    "_StandardSummary.csv", "_StandardSummary.json", "_StandardSummary_report.md",
                     "_first_30_trials.webm", "_batch_full_session.webm"
                 ]:
                     fname = f"{sid}{suffix}"
@@ -907,7 +907,7 @@ class TelemetryHTTPHandler(http.server.BaseHTTPRequestHandler):
 
                 rel_audio_path = f"recordings/{session_id}/{filename}"
 
-                # Server-side XR Glasses Earcon (247Hz B3 -> 392Hz G4) spectral template & waveform verification
+                # Server-side Android XR Earcon (247Hz B3 -> 392Hz G4) spectral template & waveform verification
                 wf_res = None
                 audio_dur_sec = data.get("audio_duration_sec")
                 is_activated = "ACTIVATED" in outcome.upper() or "WOKE" in outcome.upper()
@@ -953,8 +953,8 @@ class TelemetryHTTPHandler(http.server.BaseHTTPRequestHandler):
                                 m392_arr.append(_dft_mag(fr, 392.0))
                                 m_other_arr.append(max(_dft_mag(fr, 650.0), _dft_mag(fr, 850.0), _dft_mag(fr, 1200.0)))
 
-                            # 1. Primary Detector: Memorized XR Glasses Wake-Up Earcon Signature (247Hz B3 -> 392Hz G4 from T002 @ 2.48s)
-                            xr_glasses_cands = []
+                            # 1. Primary Detector: Memorized Android XR Wake-Up Earcon Signature (247Hz B3 -> 392Hz G4 from T002 @ 2.48s)
+                            Android XR_cands = []
                             for i in range(130, n_fr - 30):
                                 avg_247 = sum(m247_arr[i:i + 9]) / 9.0
                                 pk_247 = max(m247_arr[i:i + 9])
@@ -966,12 +966,12 @@ class TelemetryHTTPHandler(http.server.BaseHTTPRequestHandler):
                                     t_ratio = (avg_247 + avg_392) / (avg_r + 1.0)
                                     if t_ratio >= 0.42 and avg_oth < (avg_247 + avg_392) * 0.48:
                                         score = (avg_247 * 1.2 + avg_392 * 1.6) * t_ratio
-                                        xr_glasses_cands.append((i, score))
+                                        Android XR_cands.append((i, score))
 
-                            if xr_glasses_cands:
+                            if Android XR_cands:
                                 clusters = []
-                                cur_c = [xr_glasses_cands[0]]
-                                for c in xr_glasses_cands[1:]:
+                                cur_c = [Android XR_cands[0]]
+                                for c in Android XR_cands[1:]:
                                     if c[0] - cur_c[-1][0] <= 25:
                                         cur_c.append(c)
                                     else:
@@ -1051,7 +1051,7 @@ class TelemetryHTTPHandler(http.server.BaseHTTPRequestHandler):
                 except Exception:
                     pass
 
-                # Prioritize the sample-accurate XR Glasses Earcon waveform result whenever available
+                # Prioritize the sample-accurate Android XR Earcon waveform result whenever available
                 speech_end_off = (wf_res["speech_end_ms"] if wf_res else None) or data.get("speech_end_offset_ms")
                 earcon_off = (wf_res["earcon_onset_ms"] if wf_res else None) or data.get("earcon_onset_offset_ms")
                 prompt_to_audio = (wf_res["speech_onset_ms"] if wf_res else None) or data.get("prompt_to_audio_delta_ms")
@@ -1190,6 +1190,49 @@ class TelemetryHTTPHandler(http.server.BaseHTTPRequestHandler):
                 })
             except Exception as ex:
                 self.send_json_response({"status": "error", "message": str(ex)}, 500)
+
+        elif path == "/api/session/finalize_first30":
+            session_id = data.get("session_id") or active_session.get("session_id") or "session_current"
+            participant_id = re.sub(r"[^a-zA-Z0-9_-]", "_", str(data.get("participant_id") or active_session.get("participant_id") or "P01"))
+            rec_dir = os.path.join(DATA_DIR, "recordings", session_id)
+            os.makedirs(rec_dir, exist_ok=True)
+            ensure_first30_audio_file(session_id, rec_dir)
+            webm_fpath = os.path.join(rec_dir, f"{session_id}_first_30_trials.webm")
+            wav_fname = f"{participant_id}_{session_id}_first_30_trials.wav"
+            m4a_fname = f"{participant_id}_{session_id}_first_30_trials.m4a"
+            wav_fpath = os.path.join(DATA_DIR, wav_fname)
+            m4a_fpath = os.path.join(DATA_DIR, m4a_fname)
+            if os.path.exists(webm_fpath) and os.path.getsize(webm_fpath) > 0:
+                try:
+                    subprocess.run(
+                        ["ffmpeg", "-y", "-i", webm_fpath, "-ar", "48000", "-ac", "1", wav_fpath],
+                        capture_output=True,
+                        timeout=25
+                    )
+                    if os.path.exists(wav_fpath) and os.path.getsize(wav_fpath) > 0:
+                        shutil.copy2(wav_fpath, os.path.join(rec_dir, wav_fname))
+                        if os.path.exists("/usr/bin/afconvert"):
+                            subprocess.run(
+                                ["/usr/bin/afconvert", "-f", "m4af", "-d", "aac", wav_fpath, m4a_fpath],
+                                capture_output=True,
+                                timeout=25
+                            )
+                        else:
+                            subprocess.run(
+                                ["ffmpeg", "-y", "-i", wav_fpath, "-c:a", "aac", "-b:a", "192k", m4a_fpath],
+                                capture_output=True,
+                                timeout=25
+                            )
+                        if os.path.exists(m4a_fpath) and os.path.getsize(m4a_fpath) > 0:
+                            shutil.copy2(m4a_fpath, os.path.join(rec_dir, m4a_fname))
+                except Exception:
+                    pass
+            self.send_json_response({
+                "status": "finalized",
+                "session_id": session_id,
+                "wav_file": wav_fname if os.path.exists(wav_fpath) else None,
+                "m4a_file": m4a_fname if os.path.exists(m4a_fpath) else None
+            })
 
         elif path == "/api/audio/set_device":
             target = data.get("device_name", "Wireless PRO RX")
@@ -1346,16 +1389,16 @@ class TelemetryHTTPHandler(http.server.BaseHTTPRequestHandler):
             json_path = os.path.join(DATA_DIR, f"{sid}.json")
             csv_path = os.path.join(DATA_DIR, f"{sid}.csv")
             html_path = os.path.join(DATA_DIR, f"{sid}_report.html")
-            benchmark_csv_path = os.path.join(DATA_DIR, f"{sid}_benchmark.csv")
-            benchmark_json_path = os.path.join(DATA_DIR, f"{sid}_benchmark.json")
-            benchmark_md_path = os.path.join(DATA_DIR, f"{sid}_benchmark_report.md")
+            StandardSummary_csv_path = os.path.join(DATA_DIR, f"{sid}_StandardSummary.csv")
+            StandardSummary_json_path = os.path.join(DATA_DIR, f"{sid}_StandardSummary.json")
+            StandardSummary_md_path = os.path.join(DATA_DIR, f"{sid}_StandardSummary_report.md")
 
             parser.export_json(meta_copy, aligned_rows, summary_stats, confusion_matrix, json_path)
             parser.export_csv(aligned_rows, csv_path)
             parser.export_html_report(meta_copy, aligned_rows, summary_stats, confusion_matrix, html_path)
-            parser.export_benchmark_csv(meta_copy, aligned_rows, benchmark_csv_path)
-            parser.export_benchmark_json(meta_copy, aligned_rows, benchmark_json_path)
-            parser.export_benchmark_markdown_report(meta_copy, aligned_rows, benchmark_md_path)
+            parser.export_StandardSummary_csv(meta_copy, aligned_rows, StandardSummary_csv_path)
+            parser.export_StandardSummary_json(meta_copy, aligned_rows, StandardSummary_json_path)
+            parser.export_StandardSummary_markdown_report(meta_copy, aligned_rows, StandardSummary_md_path)
 
             # Archive any previous sessions out of DATA_DIR so data/ contains ONLY the current session
             try:
@@ -1407,9 +1450,9 @@ class TelemetryHTTPHandler(http.server.BaseHTTPRequestHandler):
                     "json": json_path,
                     "csv": csv_path,
                     "html": html_path,
-                    "benchmark_csv": benchmark_csv_path,
-                    "benchmark_json": benchmark_json_path,
-                    "benchmark_md": benchmark_md_path,
+                    "StandardSummary_csv": StandardSummary_csv_path,
+                    "StandardSummary_json": StandardSummary_json_path,
+                    "StandardSummary_md": StandardSummary_md_path,
                     "batch_audio": meta_copy.get("batch_audio_file"),
                     "first30_audio": meta_copy.get("first30_audio_file")
                 },
